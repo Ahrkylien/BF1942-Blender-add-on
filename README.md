@@ -6,6 +6,13 @@ The add-on is still in a very early stage.
 - Heightmap.raw export
 - .sm import
 - staticObject.con import
+## Usage:
+- download the add-on zip: https://github.com/Ahrkylien/BF1942-Blender-add-on/archive/refs/heads/main.zip
+- open Blender
+- in Blender go to: Edit -> Preferences -> Add-ons -> Install....
+- select the zip you just downloaded
+- now the Add-on is added. You only need to enable it by clicking the checkbox
+- in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
 ## ToDo:
 - add .sm export
 ```
