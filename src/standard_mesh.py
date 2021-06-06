@@ -579,14 +579,15 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                         light_uv_layer.data[loop.index].uv = (material.vertexLightmapUV[loop.vertex_index][0],1-material.vertexLightmapUV[loop.vertex_index][1])
                 object.select_set(True)
                 bpy.context.view_layer.objects.active = object
-            bpy.ops.object.join()
-            object.name = fileName+'_LOD'+str(LodNumber)
-            object.data.name = fileName+'_LOD'+str(LodNumber)
-            if merge_shared_verticies:
-                bpy.ops.object.editmode_toggle()
-                bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
-                bpy.ops.object.editmode_toggle()
-            bpy.ops.object.select_all(action='DESELECT')
+            if len(LOD_mesh.materials) > 0:
+                bpy.ops.object.join()
+                object.name = fileName+'_LOD'+str(LodNumber)
+                object.data.name = fileName+'_LOD'+str(LodNumber)
+                if merge_shared_verticies:
+                    bpy.ops.object.editmode_toggle()
+                    bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                    bpy.ops.object.editmode_toggle()
+                bpy.ops.object.select_all(action='DESELECT')
         #skip through rest of lods:
         for LodNumber in range(numLods-numLodsToPars):
             sm_LOD_mesh().read(f)
