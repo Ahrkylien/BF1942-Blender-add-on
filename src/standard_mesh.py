@@ -592,16 +592,17 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
         for LodNumber in range(numLods-numLodsToPars):
             sm_LOD_mesh().read(f)
         
-        hasShadowLods = sm_i(f)
-        if hasShadowLods == 1:
-            numShadowLods = sm_i(f) # 1 seems to be for number of ShadowLods, is it always 1?
-            for ShadowLodNumber in range(numShadowLods):
-                print('SHADOW_LOD_{}'.format(ShadowLodNumber))
-                LOD_mesh = sm_LOD_mesh().read(f)
-                for materialNumber, material in enumerate(LOD_mesh.materials):
-                    object = bf42_createObject(material.vertexValues,material.faces, fileName+'_SHADOW_LOD')
-                    object.scale = (sceneScale,sceneScale,sceneScale)
-        f.close()
+        if f.tell() < fileSize: # fix for 'broken' meshes that have EOF after LODs
+            hasShadowLods = sm_i(f)
+            if hasShadowLods == 1:
+                numShadowLods = sm_i(f) # 1 seems to be for number of ShadowLods, is it always 1?
+                for ShadowLodNumber in range(numShadowLods):
+                    print('SHADOW_LOD_{}'.format(ShadowLodNumber))
+                    LOD_mesh = sm_LOD_mesh().read(f)
+                    for materialNumber, material in enumerate(LOD_mesh.materials):
+                        object = bf42_createObject(material.vertexValues,material.faces, fileName+'_SHADOW_LOD')
+                        object.scale = (sceneScale,sceneScale,sceneScale)
+            f.close()
 
 
 #some BSP debugging:
