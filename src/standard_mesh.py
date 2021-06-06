@@ -505,6 +505,8 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
     path_rs = os.path.join(directory,fileName+".rs")
     path_sm = os.path.join(directory,fileName+".sm")
 
+    print(fileName)
+
     rs_materials = bf42_materials()
     rs_materials.read_rs_file(path_rs)
     
