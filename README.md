@@ -17,7 +17,6 @@ The add-on is still in a very early stage.
 - .sm import:
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
-	- add matterialID (COL)
 	- research matterial settings inside .sm (LOD)
 	- let LODs share the same Material
 - .sm export:
