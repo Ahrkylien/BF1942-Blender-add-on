@@ -435,8 +435,8 @@ def list2str(list):
 def write_rs_file(path,RS_materials):
     defaultMat = bf42_material("tmp");
     with open(path, "w") as f:
-        for mat in RS_materials:
-            f.write("subshader \"Afrhouse_M1_Material0\" \"StandardMesh/Default\"\n{\n")
+        for matNR, mat in enumerate(RS_materials):
+            f.write("subshader \"material_"+str(matNR)+"\" \"StandardMesh/Default\"\n{\n")
             if mat.texture != "":
                 f.write("\ttexture \"texture/"+mat.texture+"\";\n")
             if mat.transparent != defaultMat.transparent:
