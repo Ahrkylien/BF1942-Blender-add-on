@@ -31,7 +31,9 @@ classes = (
     
     BF1942_ImportSM,
     BF1942_ImportSM_Batch,
+    BF1942_ExportSM,
     BF1942_PT_ImportSM,
+    BF1942_PT_ExportSM,
     
     BF1942_ImportStaticObjects,
     BF1942_PT_ImportCon,

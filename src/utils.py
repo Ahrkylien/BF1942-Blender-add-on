@@ -5,7 +5,7 @@ import os
 from math import pi
 
 from .heightmap import bf42_heightmap
-from .standard_mesh import bf42_import_sm
+from .standard_mesh import bf42_import_sm, bf42_export_sm
 from .staticObjects import bf42_ParseCon
 from .misc import *
 
@@ -56,6 +56,51 @@ class BF1942_ExportHeightMap(Operator):
                     del heightmap
                 else:
                     BF1942Settings.HeightmapObject = None
+        return {'FINISHED'}
+class BF1942_ExportSM(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportsm"
+    bl_label = "Export BF1942 Standard Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+
+        # not used:
+        # ExportSMAutoGenLODs
+        # ExportSMNumberOfLODs
+        
+        dir = BF1942Settings.ExportSMDir
+        name = BF1942Settings.ExportSMName
+        BoundingBox_object = None
+        if BF1942Settings.ExportSMUseCustomBoundingBox:
+            BoundingBox_object = BF1942Settings.ExportSMCustomBoundingBox
+        materialID = None
+        if BF1942Settings.ExportSMForceMaterialID:
+            materialID = BF1942Settings.ExportSMMaterialID
+        COL_objects = []
+        if BF1942Settings.ExportSMCOL1 != None:
+            COL_objects.append(BF1942Settings.ExportSMCOL1)
+            if BF1942Settings.ExportSMCOL2 != None:
+                COL_objects.append(BF1942Settings.ExportSMCOL2)
+        LOD_objects = []
+        if BF1942Settings.ExportSMLOD1 != None:
+            LOD_objects.append(BF1942Settings.ExportSMLOD1)
+            if BF1942Settings.ExportSMLOD2 != None:
+                LOD_objects.append(BF1942Settings.ExportSMLOD2)
+                if BF1942Settings.ExportSMLOD3 != None:
+                    LOD_objects.append(BF1942Settings.ExportSMLOD3)
+                    if BF1942Settings.ExportSMLOD4 != None:
+                        LOD_objects.append(BF1942Settings.ExportSMLOD4)
+                        if BF1942Settings.ExportSMLOD5 != None:
+                            LOD_objects.append(BF1942Settings.ExportSMLOD5)
+                            if BF1942Settings.ExportSMLOD6 != None:
+                                LOD_objects.append(BF1942Settings.ExportSMLOD6)
+        SHADOW_objects = [] if BF1942Settings.ExportSMShadowLOD == None else [BF1942Settings.ExportSMShadowLOD]
+        applyTrans = BF1942Settings.ExportSMApplyTransformation
+        generateUV = BF1942Settings.ExportSMAutoGenUV
+        sceneScale = BF1942Settings.sceneScale
+        bf42_export_sm(dir, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, generateUV, sceneScale)
         return {'FINISHED'}
 class BF1942_ImportSM(Operator):
     """An Operator for the BF1942 addon"""
@@ -115,7 +160,7 @@ class BF1942_ImportStaticObjects(Operator):
         object_collection = bf42_getObjectsCollection()
         for static_object in static_objects:
             for object in object_collection.objects:
-                if removesuffix(object.name,"_LOD0").lower() == static_object.name.lower():
+                if removesuffix(object.name,"_LOD1").lower() == static_object.name.lower():
                     v=static_object.absolutePosition
                     r=static_object.rotation
                     new_object = object.copy()
@@ -124,7 +169,7 @@ class BF1942_ImportStaticObjects(Operator):
                     new_object.rotation_mode = "YXZ"
                     bf42_addStaticObject(new_object)
                     break
-            if removesuffix(object.name,"_LOD0").lower() != static_object.name.lower():
+            if removesuffix(object.name,"_LOD1").lower() != static_object.name.lower():
                 if not static_object.name.lower() in objects_not_found:
                     objects_not_found.append(static_object.name.lower())
         if objects_not_found != []:
@@ -237,6 +282,60 @@ class BF1942_PT_ImportSM(Panel):
         col.prop(settings, 'ImportSMDir')
         col.operator("bf1942.importsm_batch", text="Import Batch")
 
+class BF1942_PT_ExportSM(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Export Mesh"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        scn = context.scene
+        settings = scn.BF1942Settings
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        layout = self.layout
+        
+        col = layout.column(align=True)
+        col.prop(settings, 'ExportSMDir', text='folder')
+        col.prop(settings, 'ExportSMName', text='name')
+        col.prop(settings, 'ExportSMUseCustomBoundingBox', text='use custom BoundingBox')
+        if BF1942Settings.ExportSMUseCustomBoundingBox:
+            col.prop(settings, 'ExportSMCustomBoundingBox', text='BoundingBox')
+        col.prop(settings, 'ExportSMForceMaterialID', text='overide material ID')
+        if BF1942Settings.ExportSMForceMaterialID:
+            col.prop(settings, 'ExportSMMaterialID', text='MaterialID')
+        col.prop(settings, 'ExportSMCOL1', text='COL1')
+        if BF1942Settings.ExportSMCOL1 != None: #how does 3dsmax handle this?
+            col.prop(settings, 'ExportSMCOL2', text='COL2')
+        col.prop(settings, 'ExportSMAutoGenUV', text='Save lightMap UV')
+        # col.prop(settings, 'ExportSMAutoGenLODs', text='auto genrate LODs 2,3,4,5,6')
+        # col.prop(settings, 'ExportSMNumberOfLODs', text='min # of LODs')
+        col.prop(settings, 'ExportSMLOD1', text='LOD1')
+        LOD_count = 0
+        if BF1942Settings.ExportSMLOD1 != None:
+            LOD_count = 1
+            col.prop(settings, 'ExportSMLOD2', text='LOD2')
+            if BF1942Settings.ExportSMLOD2 != None:
+                LOD_count = 2
+                col.prop(settings, 'ExportSMLOD3', text='LOD3')
+                if BF1942Settings.ExportSMLOD3 != None:
+                    LOD_count = 3
+                    col.prop(settings, 'ExportSMLOD4', text='LOD4')
+                    if BF1942Settings.ExportSMLOD4 != None:
+                        LOD_count = 4
+                        col.prop(settings, 'ExportSMLOD5', text='LOD5')
+                        if BF1942Settings.ExportSMLOD5 != None:
+                            LOD_count = 5
+                            col.prop(settings, 'ExportSMLOD6', text='LOD6')
+                            if BF1942Settings.ExportSMLOD6 != None:
+                                LOD_count = 6
+        if BF1942Settings.ExportSMAutoGenLODs and BF1942Settings.ExportSMLOD1 != None:
+            for i in range(BF1942Settings.ExportSMNumberOfLODs-LOD_count):
+                col.label(text="LOD"+str(i+LOD_count+1)+": will be generated")
+        col.prop(settings, 'ExportSMShadowLOD', text='ShadowLOD')
+        col.prop(settings, 'ExportSMApplyTransformation', text='apply object transformation/scale')
+        col.operator("bf1942.exportsm", text="Export")
+
 class BF1942_PT_ImportCon(Panel):
     bl_space_type = "VIEW_3D"
     bl_context = "objectmode"
@@ -277,38 +376,45 @@ class BF1942_PT_material(Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
         
-        col = layout.column(align=True)
+        COL_box = layout.box()
+        COL_box.label(text="For COL Meshes:", icon="OBJECT_DATA")
+        COL_box.prop(ob.active_material.BF1942_sm_Properties, "MaterialID")
         
+        
+        
+        LOD_box = layout.box()
+        col  = LOD_box.column(align=True)
+        col.label(text="For LOD Meshes:", icon="MATERIAL_DATA")
         col.prop(ob.active_material.BF1942_sm_Properties, "texture")
+        col.label(text = "Generated texture path: \"texture/"+ob.active_material.BF1942_sm_Properties.texture+"\"")
         
         col.prop(ob.active_material.BF1942_sm_Properties, "lighting")
-        dif_box = layout.box()
+        dif_box = LOD_box.box()
         dif_box.prop(ob.active_material.BF1942_sm_Properties, "materialDiffuse")
         
-        col = layout.column(align=True)
+        col = LOD_box.column(align=True)
         col.prop(ob.active_material.BF1942_sm_Properties, "lightingSpecular")
-        spec_box = layout.box()
+        spec_box = LOD_box.box()
         spec_box.prop(ob.active_material.BF1942_sm_Properties, "materialSpecularPower")
         spec_box.prop(ob.active_material.BF1942_sm_Properties, "materialSpecular")
         
-        col = layout.column(align=True)
+        col = LOD_box.column(align=True)
         col.prop(ob.active_material.BF1942_sm_Properties, "twosided")
         col.prop(ob.active_material.BF1942_sm_Properties, "envmap")
         
         col.prop(ob.active_material.BF1942_sm_Properties, "transparent")
-        trans_box = layout.box()
+        trans_box = LOD_box.box()
         trans_box.prop(ob.active_material.BF1942_sm_Properties, "depthWrite")
         blend_row = trans_box.column_flow(columns=2,align=True)
         blend_row.use_property_split = True
         blend_row.prop(ob.active_material.BF1942_sm_Properties, "blendSrc")
         blend_row.prop(ob.active_material.BF1942_sm_Properties, "blendDest")
         
-        col = layout.column(align=True)
+        col = LOD_box.column(align=True)
         col.prop(ob.active_material.BF1942_sm_Properties, "textureFade")
         col.prop(ob.active_material.BF1942_sm_Properties, "alphaTestRef")
-        col.label(text = "Generated texture path: ")
-        col.prop(ob.active_material.BF1942_sm_Properties, "useCustomTexturePath")
-        col.prop(ob.active_material.BF1942_sm_Properties, "customTexturePath")
+        # col.prop(ob.active_material.BF1942_sm_Properties, "useCustomTexturePath")
+        # col.prop(ob.active_material.BF1942_sm_Properties, "customTexturePath")
 
 
 
@@ -435,25 +541,22 @@ class BF1942_sm_Properties(PropertyGroup):
         name="customTexturePath",
         default = "",
     )
+    #for collision mesh:
+    MaterialID : IntProperty(
+        name="MaterialID",
+        default = 45,
+        min = 0
+    )
 
 class BF1942Settings(PropertyGroup):
+
+    ################# world settings ###################
+    
     sceneScale : FloatProperty(
         name = "Scene Scale",
         description = "The scale factor of the Blender scene",
         default = 0.01,
         min = 0
-        )
-    ImportHeightmapFile : StringProperty(
-        name = "ImportHeightmapFile",
-        description = "ImportHeightmapFile",
-        default = "",
-        subtype="FILE_PATH"
-        )
-    ExportHeightmapFile : StringProperty(
-        name = "ExportHeightmapFile",
-        description = "ExportHeightmapFile",
-        default = "",
-        subtype="FILE_PATH"
         )
     
     WorldSize : IntProperty(
@@ -482,7 +585,22 @@ class BF1942Settings(PropertyGroup):
         default = "",
         subtype="DIR_PATH"
         )
+    
+    ################# heightmap settings ###################
 
+    ImportHeightmapFile : StringProperty(
+        name = "ImportHeightmapFile",
+        description = "ImportHeightmapFile",
+        default = "",
+        subtype="FILE_PATH"
+        )
+    ExportHeightmapFile : StringProperty(
+        name = "ExportHeightmapFile",
+        description = "ExportHeightmapFile",
+        default = "",
+        subtype="FILE_PATH"
+        )
+    
     addWater : BoolProperty(
         name = "Add Water",
         description = "Add Water mesh",
@@ -504,7 +622,9 @@ class BF1942Settings(PropertyGroup):
         description = "Import heightmap after export",
         default = True
         )
-        
+    
+    ################# .sm Import settings ###################
+    
     ImportSMFile : StringProperty(
         name = "ImportSMFile",
         description = "ImportSMFile",
@@ -548,7 +668,110 @@ class BF1942Settings(PropertyGroup):
         description = "Merge shared verticies",
         default = True
         )
+    
+    ################# .sm Export settings ###################
+    
+    ExportSMDir : StringProperty(
+        name = "ExportSMDir",
+        description = "ExportSMDir",
+        default = "",
+        subtype="DIR_PATH"
+        )
+    
+    ExportSMName : StringProperty(
+        name = "ExportSMName",
+        description = "ExportSMName",
+        default = ""
+        )
 
+    ExportSMUseCustomBoundingBox : BoolProperty(
+        name = "ExportSMUseCustomBoundingBox",
+        description = "ExportSMUseCustomBoundingBox",
+        default = False
+        )
+    
+    ExportSMCustomBoundingBox : PointerProperty(
+        type=bpy.types.Object
+        )
+
+    ExportSMForceMaterialID : BoolProperty(
+        name = "ExportSMForceMaterialID",
+        description = "ExportSMForceMaterialID",
+        default = True
+        )
+    
+    ExportSMMaterialID : IntProperty(
+        name="ExportSMMaterialID",
+        default = 45,
+        min = 0
+    )
+    
+    ExportSMCOL1 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMCOL2 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMLOD1 : PointerProperty(
+        type=bpy.types.Object
+        )
+
+    ExportSMAutoGenUV : BoolProperty(
+        name = "ExportSMAutoGenUV",
+        description = "auto genrate lightMapUV when not existing",
+        default = True
+        )
+
+    ExportSMAutoGenLODs : BoolProperty(
+        name = "ExportSMAutoGenLODs",
+        description = "ExportSMAutoGenLODs",
+        default = False
+        )
+
+    ExportSMNumberOfLODs : IntProperty(
+        name = "ExportSMNumberOfLODs",
+        description = "ExportSMNumberOfLODs",
+        default = 6,
+        min = 0,
+        max = 6
+        )
+    
+    ExportSMLOD2 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMLOD3 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMLOD4 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMLOD5 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMLOD6 : PointerProperty(
+        type=bpy.types.Object
+        )
+    
+    ExportSMShadowLOD : PointerProperty(
+        type=bpy.types.Object
+        )
+
+    ExportSMApplyTransformation : BoolProperty(
+        name = "ExportSMApplyTransformation",
+        description = "ExportSMApplyTransformation",
+        default = True
+        )
+    
+    
+    
+    ################# StaticObjects.con settings ###################
+    
     ImportConFile : StringProperty(
         name = "ImportConFile",
         description = "Import StaticObjects.con",

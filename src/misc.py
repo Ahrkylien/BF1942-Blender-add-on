@@ -90,3 +90,14 @@ def bf42_duplicateSpecialObject(object,newName='tmp'):
     newObject.name=newName
     bf42_addSpecialObject(newObject)
     return(newObject)
+
+def bf42_applyTransformObject(object):
+    object.data.transform(object.matrix_world)
+    object.matrix_world = ((1.0, 0.0, 0.0, 0.0), (0.0, 1.0, 0.0, 0.0), (0.0, 0.0, 1.0, 0.0), (0.0, 0.0, 0.0, 1.0))
+
+def bf42_triangulateObject(object):
+    modifier = object.modifiers.new("tmp", "TRIANGULATE")
+    old_active = bpy.context.view_layer.objects.active
+    bpy.context.view_layer.objects.active = object
+    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="tmp")
+    bpy.context.view_layer.objects.active = old_active

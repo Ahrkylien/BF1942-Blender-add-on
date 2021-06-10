@@ -14,20 +14,32 @@ The add-on is still in a very early stage.
 - now the Add-on is added. You only need to enable it by clicking the checkbox
 - in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
 ## ToDo:
-- add .sm export
-```
-  https://blenderartists.org/t/different-ways-to-create-mesh-objects/496955/12
-```
+- .sm import:
+	- correct vertex normals (COL)
+	- correct face normals (LOD)
+	- add matterialID (COL)
+	- research matterial settings inside .sm (LOD)
+	- let LODs share the same Material
+- .sm export:
+	- LOD generation
+	- create dummy Visible mesh if none supplied
+	- Separate Face by Angle
+		``
+		The LOD mesh separates faces whose face-to-face angle is greater than the smoothing angle.
+		By separating it, the boundary between faces will appear angular in the game.
+		``
+	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
 - staticObject.con export
 - add minimap render
-```
-    bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
-    camera = bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 1000*0.01), rotation=(0, 0, 0))
-    bpy.context.object.data.type = 'ORTHO'
-    bpy.context.object.data.ortho_scale = 2048*0.01
-    bpy.context.object.data.shift_x = 0.5
-    bpy.context.object.data.shift_y = 0.5
-    bpy.context.object.data.clip_end = 1000
-```
+	```
+	bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
+	camera = bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 1000*0.01), rotation=(0, 0, 0))
+	bpy.context.object.data.type = 'ORTHO'
+	bpy.context.object.data.ortho_scale = 2048*0.01
+	bpy.context.object.data.shift_x = 0.5
+	bpy.context.object.data.shift_y = 0.5
+	bpy.context.object.data.clip_end = 1000
+	```
 - fill in: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki
   and add it to bl_info = {}
+	- MaterialID list
