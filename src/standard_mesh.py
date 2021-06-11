@@ -533,26 +533,29 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
     faces_materialID = []
     faceNormals = []
     vertices = []
+    verticesMaterial = []
     vertex_indeces = []
     for polygon in mesh.polygons:
         face = []
         faceNormals.append(tuple(polygon.normal))
-        for vertex_index in polygon.vertices:
-            if not vertex_index in vertex_indeces:
-                vertices.append(tuple(mesh.vertices[vertex_index].co))
-                vertex_indeces.append(vertex_index)
-            face.append(vertex_indeces.index(vertex_index))
-        faces.append(tuple(face))
         material_index = polygon.material_index
         if len(mesh.materials) > material_index:
             materialID_face = mesh.materials[material_index].BF1942_sm_Properties.MaterialID
         else:
             materialID_face = 0
         faces_materialID.append(materialID_face)
+        for vertex_index in polygon.vertices:
+            if not vertex_index in vertex_indeces:
+                vertices.append(tuple(mesh.vertices[vertex_index].co))
+                verticesMaterial.append(materialID_face)
+                vertex_indeces.append(vertex_index)
+            face.append(vertex_indeces.index(vertex_index))
+        faces.append(tuple(face))
     sm_i_w(f, len(vertices)) #numVertices
-    for vertex in vertices:
+    for vertexNumber, vertex in enumerate(vertices):
         sm_f_w(f, (vertex[0],vertex[2],vertex[1]))
-        sm_i_w(f, 0)
+        sm_i_short_w(f, verticesMaterial[vertexNumber])
+        sm_i_short_w(f, 0)
     sm_i_w(f, len(faces)) #numFaces
     for faceNumber, face in enumerate(faces):
         sm_i_short_w(f, (face[0],face[1],face[2]))
