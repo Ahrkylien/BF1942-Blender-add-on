@@ -486,10 +486,8 @@ def bf42_addMaterialID_Material(mesh, materialID):
     return(mat)
 ###############################################################        
 def remake_sm_BSP(path,depth='-a'):
-#    print(__file__)
-    folder_name = "BF1942-Blender-add-on-main"
-    addonPath = bpy.utils.user_resource('SCRIPTS', "addons")+"/"+folder_name+"/"
-    cmd = '"'+addonPath+'bin/makeBSP.exe" "'+path+'" '+depth+''
+    BSP_path = os.path.normpath(os.path.join(__file__,"../../bin/makeBSP.exe"))
+    cmd = '"'+BSP_path+'" "'+path+'" '+depth+''
 #    print(cmd)
     p = os.popen(cmd)
 #    print(p.read())
