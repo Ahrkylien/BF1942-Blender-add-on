@@ -477,7 +477,7 @@ class BF1942_sm_Properties(PropertyGroup):
     )
     lightingSpecular : BoolProperty(
         name="lightingSpecular",
-        default=True
+        default=False
     )
     twosided : BoolProperty(
         name="twosided",
@@ -530,7 +530,7 @@ class BF1942_sm_Properties(PropertyGroup):
     )
     materialSpecularPower : FloatProperty(
         name="materialSpecularPower",
-        default = 1,
+        default = 12.5,
         min = 0
     )
     useCustomTexturePath : BoolProperty(
