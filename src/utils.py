@@ -697,7 +697,7 @@ class BF1942Settings(PropertyGroup):
     ExportSMForceMaterialID : BoolProperty(
         name = "ExportSMForceMaterialID",
         description = "ExportSMForceMaterialID",
-        default = True
+        default = False
         )
     
     ExportSMMaterialID : IntProperty(
