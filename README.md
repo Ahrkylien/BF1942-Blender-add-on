@@ -2,9 +2,8 @@
 A Battlefield 1942 import/export add-on for Blender.\
 The add-on is still in a very early stage.
 ## Features:
-- Heightmap.raw import
-- Heightmap.raw export
-- .sm import
+- Heightmap.raw import/export
+- mesh (.sm and .rs) import/export
 - staticObject.con import
 ## Usage:
 - download the add-on zip: https://github.com/Ahrkylien/BF1942-Blender-add-on/archive/refs/heads/main.zip

@@ -3,7 +3,7 @@ bl_info = {
     "name": "Battlefield 1942",
     "description": "This a start towards a complete Battlefield 1942 addon",
     "author": "Henk <Discord: Arkyliën#6833>",
-    "version": (2, 0),
+    "version": (3, 0),
     "blender": (2,  81, 0),
     "location": "View 3D > Properties Panel",
     "support": "COMMUNITY",
