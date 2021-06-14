@@ -25,7 +25,7 @@ class bf42_heightmap:
         self.checkFile()
     
     def addExportMapPath(self, path):
-        self.exportMapPath = path
+        self.exportMapPath = os.path.join(path,"Heightmap.raw")
     
     def setWorldSize(self, worldSize):
         self.worldSize = int(worldSize)

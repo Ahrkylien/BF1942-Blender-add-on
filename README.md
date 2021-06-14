@@ -19,6 +19,7 @@ The add-on is still in a very early stage.
 	- correct face normals (LOD)
 	- research matterial settings inside .sm (LOD)
 	- let LODs share the same Material
+	- let materials share the same textures
 - .sm export:
 	- LOD generation
 	- create dummy Visible mesh if none supplied

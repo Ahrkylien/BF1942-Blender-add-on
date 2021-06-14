@@ -51,7 +51,7 @@ class BF1942_ExportHeightMap(Operator):
                     heightmap.addExportMapPath(ExportHeightmapFile)
                     heightmap.generateHeightmap(selectedObject)
                     if BF1942Settings.AddHeightmapAfterExport:
-                        heightmap.addImportMapPath(ExportHeightmapFile)
+                        heightmap.addImportMapPath(os.path.join(ExportHeightmapFile,"Heightmap.raw"))
                         heightmap.generateMesh()
                     del heightmap
                 else:
@@ -231,7 +231,7 @@ class BF1942_PT_ImportHeightmap(Panel):
         
         
         col = layout.column(align=True)
-        col.prop(settings, 'ImportHeightmapFile')
+        col.prop(settings, 'ImportHeightmapFile', text='File')
         col.prop(settings, 'addWater')
         col.prop(settings, 'addWorldSize')
         row = layout.row(align=True)
@@ -251,8 +251,8 @@ class BF1942_PT_ExportHeightmap(Panel):
         
         
         col = layout.column(align=True)
-        col.prop(settings, 'ExportHeightmapFile')
-        col.prop(settings, 'HeightmapObject')
+        col.prop(settings, 'ExportHeightmapFile', text='Folder')
+        col.prop(settings, 'HeightmapObject', text='Terrain object')
         col.prop(settings, 'AddHeightmapAfterExport')
         row = layout.row(align=True)
         row.operator("bf1942.exportheightmap", text="Export")
@@ -598,7 +598,7 @@ class BF1942Settings(PropertyGroup):
         name = "ExportHeightmapFile",
         description = "ExportHeightmapFile",
         default = "",
-        subtype="FILE_PATH"
+        subtype="DIR_PATH"
         )
     
     addWater : BoolProperty(
