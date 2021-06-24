@@ -465,7 +465,6 @@ def write_rs_file(path,RS_materials):
                 f.write("\tmaterialSpecular "+list2str(mat.materialSpecular)+";\n")
             if mat.materialSpecularPower != defaultMat.materialSpecularPower:
                 f.write("\tmaterialSpecularPower "+str(mat.materialSpecularPower)+";\n")
-            f.write("\tlighting true;\n")
             f.write("}\n\n")
 
 def bf42_addMaterialID_Material(mesh, materialID):
