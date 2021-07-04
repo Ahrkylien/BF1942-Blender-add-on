@@ -161,6 +161,7 @@ class BF1942_ImportStaticObjects(Operator):
         static_objects = bf42_ParseCon(path)
         object_collection = bf42_getObjectsCollection()
         for static_object in static_objects:
+            meshFound = False
             for object in object_collection.objects:
                 if removesuffix(object.name,"_LOD1").lower() == static_object.name.lower():
                     v=static_object.absolutePosition
@@ -171,8 +172,9 @@ class BF1942_ImportStaticObjects(Operator):
                     new_object.rotation_mode = "YXZ"
                     new_object.name = static_object.name
                     bf42_addStaticObject(new_object)
+                    meshFound = True
                     break
-            if removesuffix(object.name,"_LOD1").lower() != static_object.name.lower():
+            if not meshFound:
                 if not static_object.name.lower() in objects_not_found:
                     objects_not_found.append(static_object.name.lower())
         if objects_not_found != []:
