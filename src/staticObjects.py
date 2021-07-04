@@ -48,3 +48,14 @@ def bf42_ParseCon(filename):
             if words[0] == 'object.rotation':
                 objects[-1].rotation = bf42_vec3( words[1] )
     return objects
+    
+# parses .con file and returns list of objects
+def bf42_WriteCon(filename, objects):
+    with open(filename, 'w') as f:
+        for object in objects:
+            p = object.absolutePosition
+            r = object.rotation
+            f.write("object.create "+object.name+"\n")
+            f.write("object.absolutePosition "+str(p.x)+"/"+str(p.z)+"/"+str(p.y)+"\n")
+            f.write("object.rotation "+str(r.x)+"/"+str(r.z)+"/"+str(r.y)+"\n\n")
+    return objects

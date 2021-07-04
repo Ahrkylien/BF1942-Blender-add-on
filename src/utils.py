@@ -1,12 +1,12 @@
 import bpy
 from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty, StringProperty, FloatVectorProperty, EnumProperty
-from bpy.types import Operator, Panel, PropertyGroup
+from bpy.types import Operator, Panel, PropertyGroup, AddonPreferences
 import os
 from math import pi
 
 from .heightmap import bf42_heightmap
 from .standard_mesh import bf42_import_sm, bf42_export_sm
-from .staticObjects import bf42_ParseCon
+from .staticObjects import *
 from .misc import *
 
 #Operators
@@ -115,9 +115,10 @@ class BF1942_ImportSM(Operator):
         add_Collision = BF1942Settings.Collision
         add_Visible = BF1942Settings.Visible
         add_only_main_LOD = BF1942Settings.OnlyMainLOD
+        add_Shadow = BF1942Settings.Shadow
         merge_shared_verticies = BF1942Settings.Merge_shared_verticies
         sceneScale = BF1942Settings.sceneScale
-        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, merge_shared_verticies,sceneScale)
+        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale)
         return {'FINISHED'}
 class BF1942_ImportSM_Batch(Operator):
     """An Operator for the BF1942 addon"""
@@ -132,6 +133,7 @@ class BF1942_ImportSM_Batch(Operator):
         add_Collision = BF1942Settings.Collision
         add_Visible = BF1942Settings.Visible
         add_only_main_LOD = BF1942Settings.OnlyMainLOD
+        add_Shadow = BF1942Settings.Shadow
         merge_shared_verticies = BF1942Settings.Merge_shared_verticies
         sceneScale = BF1942Settings.sceneScale
         print("")
@@ -141,7 +143,7 @@ class BF1942_ImportSM_Batch(Operator):
                 if len(basename) > 1:
                     if basename[1] == 'sm':
                         path = os.path.join(dirPath, fileName)
-                        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, merge_shared_verticies,sceneScale)
+                        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale)
         return {'FINISHED'}
 class BF1942_ImportStaticObjects(Operator):
     """An Operator for the BF1942 addon"""
@@ -167,6 +169,7 @@ class BF1942_ImportStaticObjects(Operator):
                     new_object.location = (v.x*sceneScale, v.y*sceneScale, v.z*sceneScale)
                     new_object.rotation_euler = (-r.z*pi/180, -r.y*pi/180, -r.x*pi/180)
                     new_object.rotation_mode = "YXZ"
+                    new_object.name = static_object.name
                     bf42_addStaticObject(new_object)
                     break
             if removesuffix(object.name,"_LOD1").lower() != static_object.name.lower():
@@ -178,7 +181,38 @@ class BF1942_ImportStaticObjects(Operator):
             for objects_name in objects_not_found:
                 print(objects_name)
         return {'FINISHED'}
+class BF1942_ExportStaticObjects(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportstaticobjects"
+    bl_label = "Export BF1942 StaticObject.con"
+    bl_options = {'REGISTER', 'UNDO'}
 
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        
+        path = BF1942Settings.ImportConFile
+        sceneScale = BF1942Settings.sceneScale
+        objects = []
+        
+        StaticObject_collection = bf42_getStaticObjectsCollection()
+        static_object = zip(StaticObject_collection.children, StaticObject_collection.objects)
+        for static_object in StaticObject_collection.objects:
+            p = static_object.location
+            if 'Z' in static_object.rotation_mode:
+                q = static_object.rotation_euler.to_quaternion()
+                print(q)
+            else:
+                q = static_object.rotation_quaternion
+            r = q.to_euler("YXZ")
+            print(r)
+            newObject = bf42_Object(revomeBlenderSuffix(static_object.name))
+            newObject.absolutePosition = bf42_vec3((p.x/sceneScale,p.y/sceneScale,p.z/sceneScale))
+            newObject.rotation = bf42_vec3((-r.z/pi*180,-r.y/pi*180,-r.x/pi*180))
+            objects.append(newObject)
+        for static_object in StaticObject_collection.children:
+            True
+        bf42_WriteCon(path, objects)
+        return {'FINISHED'}
 
 
 
@@ -205,7 +239,7 @@ class BF1942_PT_worldSettings(Panel):
         col.prop(settings, 'WorldSize')
         col.prop(settings, 'yScale')
         col.prop(settings, 'waterLevel')
-        col.prop(settings, 'TextureDirectory')
+        col.prop(settings, 'TextureDirectory', text='Texture Folder')
 
 #        layout.use_property_split = True
 #        layout.use_property_decorate = False
@@ -275,6 +309,7 @@ class BF1942_PT_ImportSM(Panel):
         col.prop(settings, 'Collision')
         col.prop(settings, 'Visible')
         col.prop(settings, 'OnlyMainLOD')
+        col.prop(settings, 'Shadow')
         col.prop(settings, 'Merge_shared_verticies')
         col.prop(settings, 'ImportSMFile')
         # row = layout.row(align=True)
@@ -340,7 +375,7 @@ class BF1942_PT_ImportCon(Panel):
     bl_space_type = "VIEW_3D"
     bl_context = "objectmode"
     bl_region_type = "UI"
-    bl_label = "Import StaticObjects.con"
+    bl_label = "StaticObjects.con"
     bl_category = "BF1942"
 
     def draw(self, context):
@@ -349,8 +384,9 @@ class BF1942_PT_ImportCon(Panel):
         layout = self.layout
         
         col = layout.column(align=True)
-        col.prop(settings, 'ImportConFile')
+        col.prop(settings, 'ImportConFile', text="File")
         col.operator("bf1942.importstaticobjects", text="Import")
+        col.operator("bf1942.exportstaticobjects", text="Export")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -362,7 +398,12 @@ class BF1942_PT_material(Panel):
 
     @classmethod
     def poll(cls, context):
-        return (context.object is not None)
+        if context.object is None:
+            return(False)
+        elif context.object.active_material is None:
+            return(False)
+        else:
+            return(True)
 
     # def draw_header(self, context):
         # layout = self.layout
@@ -663,6 +704,12 @@ class BF1942Settings(PropertyGroup):
         default = True
         )
 
+    Shadow : BoolProperty(
+        name = "Shadow",
+        description = "Shadow",
+        default = False
+        )
+
     Merge_shared_verticies : BoolProperty(
         name = "Merge_shared_verticies",
         description = "Merge shared verticies",
@@ -778,3 +825,28 @@ class BF1942Settings(PropertyGroup):
         default = "",
         subtype="FILE_PATH"
         )
+
+
+
+class BF1942AddonPreferences(AddonPreferences):
+    bl_idname = __package__.rsplit('.', 1)[0]
+
+    # filepath: StringProperty(
+        # name="Example File Path",
+        # subtype='FILE_PATH',
+    # )
+    # number: IntProperty(
+        # name="Example Number",
+        # default=4,
+    # )
+    # boolean: BoolProperty(
+        # name="Example Boolean",
+        # default=False,
+    # )
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Here some settings wlll come (in the future)")
+        # layout.prop(self, "filepath")
+        # layout.prop(self, "number")
+        # layout.prop(self, "boolean")

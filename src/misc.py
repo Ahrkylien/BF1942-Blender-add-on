@@ -7,6 +7,12 @@ def removesuffix(string, suffix):
         return string[:-len(suffix)]
     else:
         return string[:]
+def revomeBlenderSuffix(name):
+    nameL = name.rsplit('.', 1)
+    if len(nameL) == 2:
+        if nameL[1].isnumeric():
+            name = nameL[0]
+    return(name)
         
 popupMessages = []
 def draw_popupMessage(self, context):
@@ -57,9 +63,9 @@ def bf42_getStaticObjectsCollection():
 def bf42_getObjectsCollection():
     bf42_collection = bf42_getCollection()
     try:
-        bf42_object_collection = bpy.data.collections['bf42_objects']
+        bf42_object_collection = bpy.data.collections['bf42_meshes']
     except:
-        bf42_object_collection = bpy.data.collections.new('bf42_objects')
+        bf42_object_collection = bpy.data.collections.new('bf42_meshes')
         bf42_collection.children.link(bf42_object_collection)
     return(bf42_object_collection)
 

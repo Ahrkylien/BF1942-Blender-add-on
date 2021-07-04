@@ -36,10 +36,12 @@ classes = (
     BF1942_PT_ExportSM,
     
     BF1942_ImportStaticObjects,
+    BF1942_ExportStaticObjects,
     BF1942_PT_ImportCon,
     
-    BF1942_PT_material
+    BF1942_PT_material,
     
+    BF1942AddonPreferences
     
     )
 

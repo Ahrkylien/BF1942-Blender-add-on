@@ -652,6 +652,7 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
                     else:
                         vertexLightmapUVco = (light_uv_layer.data[loop_index].uv[0],1-light_uv_layer.data[loop_index].uv[1])
                     ref = (vertex.co, vertexTextureUVco, vertexLightmapUVco)
+                    vertices_ref_index = 0 # this is to avoid the index function, for speed
                     if not ref in vertices_ref:
                         vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
                         vertexNormals.append(tuple(vertex.normal))
@@ -659,7 +660,10 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
                         if not light_uv_layer == None and addLightMapUV:
                             vertexLightmapUV.append(vertexLightmapUVco)
                         vertices_ref.append(ref)
-                    face.append(vertices_ref.index(ref))
+                        vertices_ref_index = len(vertices_ref)-1 # this is to avoid the index function
+                    if vertices_ref_index == 0: # this is to avoid the index function
+                        vertices_ref_index = vertices_ref.index(ref)
+                    face.append(vertices_ref_index)
                 faces.append((face[0],face[2],face[1])) # correct for normal
         if len(faces) > 0:
             materialSettings = 0
@@ -783,7 +787,7 @@ def bf42_import_sm_debug(path):
             print("Error, Data left at end: "+str(f.tell())+" -> "+str(fileSize)+" : "+str(fileSize-f.tell()))
         f.close()
 
-def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, merge_shared_verticies,sceneScale):
+def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale):
     path = bpy.path.abspath(path)
     basename = bpy.path.basename(path).split('.',1)[0]
     fileName = basename.split('.',1)[0]
@@ -819,17 +823,16 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
 #        print('COLLISION_COUNT: {}'.format(numTopModels))
         
         for collisionMeshNumber in range(numCollisionMeshes):
-            startOffset = f.tell()
-            print('COL_{}'.format(collisionMeshNumber))
-            collisionMesh = sm_COL_mesh().read(f)
-            vertices = []
-            faces = []
-            for vertex in collisionMesh.vertices:
-                vertices.append((vertex.vertex[0],vertex.vertex[2],vertex.vertex[1]))
-            for face in collisionMesh.faces:
-                faces.append(face.vertices)
-                #ToDo: face material
             if add_Collision:
+                startOffset = f.tell()
+                print('COL_{}'.format(collisionMeshNumber))
+                collisionMesh = sm_COL_mesh().read(f)
+                vertices = []
+                faces = []
+                for vertex in collisionMesh.vertices:
+                    vertices.append((vertex.vertex[0],vertex.vertex[2],vertex.vertex[1]))
+                for face in collisionMesh.faces:
+                    faces.append(face.vertices)
                 object = bf42_createObject(vertices,faces, fileName+'_COL'+str(collisionMeshNumber+1))
                 mesh = object.data
                 materialIDs = []
@@ -842,13 +845,13 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 for materialID in materialIDs:
                     bf42_addMaterialID_Material(mesh,materialID)
                 object.scale = (sceneScale,sceneScale,sceneScale)
-            endOffset = startOffset+4+collisionMesh.sizeOfSection
-            
-            if endOffset != f.tell():
-                print("\tError!!!!!")
-                print('\t{} != {}'.format(f.tell(),endOffset))
-                f.seek(endOffset) 
-        
+                endOffset = startOffset+4+collisionMesh.sizeOfSection
+                if endOffset != f.tell():
+                    print("\tError!!!!!")
+                    print('\t{} != {}'.format(f.tell(),endOffset))
+                    f.seek(endOffset) 
+            else:
+                f.seek(sm_i(f),1) #fast skip over COL meshes
         
         numLods = sm_i(f)
         numLodsToPars = numLods
@@ -888,26 +891,27 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                     bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
                     bpy.ops.object.editmode_toggle()
                 bpy.ops.object.select_all(action='DESELECT')
-        #skip through rest of lods:
-        for LodNumber in range(numLods-numLodsToPars):
-            sm_LOD_mesh().read(f)
-        
-        if f.tell() < fileSize: # fix for 'broken' .sm that have EOF after LODs
-            hasShadowLods = sm_i(f)
-            if hasShadowLods == 1:
-                numShadowLods = sm_i(f) # 1 seems to be for number of ShadowLods, is it always 1?
-                for ShadowLodNumber in range(numShadowLods):
-                    print('SHADOW_LOD_{}'.format(ShadowLodNumber))
-                    LOD_mesh = sm_LOD_mesh().read(f)
-                    for materialNumber, material in enumerate(LOD_mesh.materials):
-                        object = bf42_createObject(material.vertexValues,material.faces, fileName+'_ShadowLOD')
-                        object.scale = (sceneScale,sceneScale,sceneScale)
-                    bpy.context.view_layer.objects.active = object
-                    if merge_shared_verticies:
-                        bpy.ops.object.editmode_toggle()
-                        bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
-                        bpy.ops.object.editmode_toggle()
-                    bpy.ops.object.select_all(action='DESELECT')
+        if add_Shadow:
+            #skip through rest of lods:
+            for LodNumber in range(numLods-numLodsToPars):
+                sm_LOD_mesh().read(f)
+            
+            if f.tell() < fileSize: # fix for 'broken' .sm that have EOF after LODs
+                hasShadowLods = sm_i(f)
+                if hasShadowLods == 1:
+                    numShadowLods = sm_i(f) # 1 seems to be for number of ShadowLods, is it always 1?
+                    for ShadowLodNumber in range(numShadowLods):
+                        print('SHADOW_LOD_{}'.format(ShadowLodNumber))
+                        LOD_mesh = sm_LOD_mesh().read(f)
+                        for materialNumber, material in enumerate(LOD_mesh.materials):
+                            object = bf42_createObject(material.vertexValues,material.faces, fileName+'_ShadowLOD')
+                            object.scale = (sceneScale,sceneScale,sceneScale)
+                        bpy.context.view_layer.objects.active = object
+                        if merge_shared_verticies:
+                            bpy.ops.object.editmode_toggle()
+                            bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                            bpy.ops.object.editmode_toggle()
+                        bpy.ops.object.select_all(action='DESELECT')
         f.close()
 
 def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, generateUV, sceneScale):
