@@ -28,6 +28,7 @@ The add-on is still in a very early stage.
 		By separating it, the boundary between faces will appear angular in the game.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
+	- Add matterials of non-mainLods to rs if not there already
 - staticObject.con import
 	- support Template structure readout or .lst readout
 	- support Collections (bundles)
