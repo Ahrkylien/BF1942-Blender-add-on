@@ -13,6 +13,8 @@ The add-on is still in a very early stage.
 - now the Add-on is added. You only need to enable it by clicking the checkbox
 - in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
 ## ToDo:
+- heightmap import/export:
+	- add multires support: https://bfmods.com/viewtopic.php?f=6&t=2275&p=15648
 - .sm import:
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
