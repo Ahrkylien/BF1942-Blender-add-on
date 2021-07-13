@@ -47,6 +47,7 @@ The add-on is still in a very early stage.
 	bpy.context.object.data.shift_y = 0.5
 	bpy.context.object.data.clip_end = 1000
 	```
+- add Lightmap export for maps
 - fill in: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki
   and add it to bl_info = {}
 	- MaterialID list
