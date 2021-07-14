@@ -32,11 +32,13 @@ The add-on is still in a very early stage.
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
 	- Add matterials of non-mainLods to rs if not there already
 - staticObject.con import
-	- support Template structure readout or .lst readout
+	- create list of possible ObjectTemplates/Meshes based Template structure readout or .lst readout
 	- support Collections (bundles)
 - staticObject.con export
 	- support Collections (bundles)
 	- support linked translation (translation of parent object)
+- create UI for manullay adding staticObject to scene from list:
+	- https://blender.stackexchange.com/questions/44886/search-enum-list
 - add minimap render
 	```
 	bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
