@@ -13,6 +13,8 @@ The add-on is still in a very early stage.
 - now the Add-on is added. You only need to enable it by clicking the checkbox
 - in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
 ## ToDo:
+- heightmap import/export:
+	- add multires support: https://bfmods.com/viewtopic.php?f=6&t=2275&p=15648
 - .sm import:
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
@@ -28,12 +30,15 @@ The add-on is still in a very early stage.
 		By separating it, the boundary between faces will appear angular in the game.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
+	- Add matterials of non-mainLods to rs if not there already
 - staticObject.con import
-	- support Template structure readout or .lst readout
+	- create list of possible ObjectTemplates/Meshes based Template structure readout or .lst readout
 	- support Collections (bundles)
 - staticObject.con export
 	- support Collections (bundles)
 	- support linked translation (translation of parent object)
+- create UI for manullay adding staticObject to scene from list:
+	- https://blender.stackexchange.com/questions/44886/search-enum-list
 - add minimap render
 	```
 	bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
@@ -44,6 +49,7 @@ The add-on is still in a very early stage.
 	bpy.context.object.data.shift_y = 0.5
 	bpy.context.object.data.clip_end = 1000
 	```
+- add Lightmap export for maps
 - fill in: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki
   and add it to bl_info = {}
 	- MaterialID list
