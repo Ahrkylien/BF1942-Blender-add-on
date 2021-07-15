@@ -105,5 +105,8 @@ def bf42_triangulateObject(object):
     modifier = object.modifiers.new("tmp", "TRIANGULATE")
     old_active = bpy.context.view_layer.objects.active
     bpy.context.view_layer.objects.active = object
-    bpy.ops.object.modifier_apply(apply_as='DATA', modifier="tmp")
+    if bpy.app.version >= (2, 91, 0):
+        bpy.ops.object.modifier_apply(modifier="tmp")
+    else:
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier="tmp")
     bpy.context.view_layer.objects.active = old_active
