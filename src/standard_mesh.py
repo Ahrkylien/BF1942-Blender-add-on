@@ -47,6 +47,23 @@ def sm_B_w(f, val):
     if not isinstance(val, (list,tuple)): val = [val]
     return(f.write(struct.pack('B'*len(val), *val)))
     
+class sm_bsp:
+    def __init__(self):
+        self.totalFaceListCount = 0
+        self.numBspNodes = 0 # not counting baseNode
+        self.numFaces = 0
+        self.faceNormals = []
+        self.baseNode = None
+    def read(self,f):
+        self.totalFaceListCount = sm_i(f) # something to do with the faceCount and the dimension of the bsp tree.
+        # or maybe: The diameter of the communication network, or at least the length of the longest path that allows state to 
+        # be moved from one processor to another clearly imposes a lower bound on l....
+        self.numBspNodes = sm_i(f)
+        self.numFaces = sm_i(f)
+        for i in range(self.numFaces):
+            self.faceNormals.append(sm_COL_faceNormal().read(f))
+        self.baseNode = sm_bsp_node().read(f)
+        return(self)
 
 class sm_bsp_node:
     def __init__(self,boundingBox = None, faces = None, childeren = [None,None]):
@@ -75,7 +92,7 @@ class sm_header:
 #        print('Version: {}'.format(Version))
         self.unknown1 = unkownBytes(f,4)
         if self.unknown1 != (0,0,0,0):
-             print("Unexpected, sm_header.unknown1 is not 0?: "+str(self.unknown1))
+            print("Unexpected, sm_header.unknown1 is not 0?: "+str(self.unknown1))
         self.boundingBox = sm_f(f,6)
         if self.version==10:
             self.qflag = struct.unpack('B', f.read(1))[0]
@@ -89,59 +106,39 @@ class sm_header:
 
 class sm_COL_mesh:
     def __init__(self):
-        self.sizeOfSection = 0
         self.unknown1 = (250, 194, 151, 235)
         self.unknown2 = 5
         self.numVertices = 0
         self.vertices = []
         self.numFaces = 0
         self.faces = []
-        self.unknown3 = 0
-        self.numBspEdges = 0
-        self.numFaceNormals = 0
-        self.faceNormals = []
-        self.bsp_node_1 = None
-    def read(self,f):
-        self.sizeOfSection = sm_i(f)
+        self.bsp = None
         
-        endOffset = f.tell() + self.sizeOfSection
+        self.exists = False
+    def read(self,f):
         self.unknown1 = unkownBytes(f,4)
         if self.unknown1 != (250, 194, 151, 235):
             print("Unexpected, sm_COL_mesh.unknown1: "+str(self.unknown1))
-        self.unknown2 = sm_i(f)
-        if self.unknown2 != 5:
-            print("Unexpected, sm_COL_mesh.unknown2: "+str(self.unknown2))
-        
-        self.numVertices = sm_i(f)
-#        print('\tMESH_VERTICES: {}'.format(self.numVertices))
-        
-        for i in range(self.numVertices):
-            self.vertices.append(sm_COL_vertex().read(f))
-        
-        self.numFaces = sm_i(f)
-#        print('\tMESH_FACES: {}'.format(self.numFaces))
-        for i in range(self.numFaces):
-            self.faces.append(sm_COL_face().read(f))
-        
-        self.unknown3 = sm_i(f) # something to do with the faceCount and the dimension of the bsp tree.
-        # or maybe: The diameter of the communication network, or at least the length of the longest path that allows state to 
-        # be moved from one processor to another clearly imposes a lower bound on l....
-        self.numBspEdges = sm_i(f)
-        
-        self.numFaceNormals = sm_i(f)
-#        print('\tFACENORMAL_COUNT: {}'.format(self.numFaceNormals))
-        # print("\t?: {} <-> {} {} {}".format(self.unknown3, self.numVertices, self.numFaces, self.numFaceNormals))
-        for i in range(self.numFaceNormals):
-            self.faceNormals.append(sm_COL_faceNormal().read(f))
-            
-            #debug check:
-            faceNormal = self.faceNormals[i]
-            if(faceNormal.unknown[0] != 0 or faceNormal.unknown[1:4] != self.faces[i].vertices or faceNormal.unknown[4] != self.faces[i].materialID):
-                print("Unexpected: sm_COL_mesh_faceNormal.unknown = "+str(faceNormal.unknown))
-                print("   - : "+str(self.faces[i].vertices)+", "+str(self.faces[i].materialID))
-        print(f.tell())
-        self.bsp_node_1 = sm_bsp_node().read(f)
-        print(f.tell())
+        else:
+            self.unknown2 = sm_i(f)
+            if self.unknown2 != 5:
+                print("Unexpected, sm_COL_mesh.unknown2: "+str(self.unknown2))
+            else:
+                self.exists = True
+                self.numVertices = sm_i(f)
+                for i in range(self.numVertices):
+                    self.vertices.append(sm_COL_vertex().read(f))
+                
+                self.numFaces = sm_i(f)
+                for i in range(self.numFaces):
+                    self.faces.append(sm_COL_face().read(f))
+                
+                self.bsp = sm_bsp().read(f)
+                #debug check:
+                for i, faceNormal in enumerate(self.bsp.faceNormals):
+                    if(faceNormal.unknown[0] != 0 or faceNormal.unknown[1:4] != self.faces[i].vertices or faceNormal.unknown[4] != self.faces[i].materialID):
+                        print("Unexpected: sm_COL_mesh_faceNormal.unknown = "+str(faceNormal.unknown))
+                        print("   - : "+str(self.faces[i].vertices)+", "+str(self.faces[i].materialID))
         return(self)
 
 class sm_COL_vertex:
@@ -303,9 +300,9 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
     mat.BF1942_sm_Properties.materialSpecular = rs_matterial.materialSpecular
     mat.BF1942_sm_Properties.materialSpecularPower = rs_matterial.materialSpecularPower
     if rs_matterial.transparent:
-        mat.blend_method = 'BLEND'
+        mat.blend_method = 'HASHED'
     if rs_matterial.textureFade:
-        mat.blend_method = 'BLEND'
+        mat.blend_method = 'HASHED'
     mat.use_backface_culling = not rs_matterial.twosided
 
     nodes = mat.node_tree.nodes
@@ -324,7 +321,7 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
         node_texture.image = image
         new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
     else:
-        print("texture not found")
+        print("texture not found: "+rs_matterial.texture)
     new_link = links.new(node_UVMap_texture.outputs[0],node_texture.inputs[0])
     new_link = links.new(node_texture.outputs[0],node_principled.inputs[0])
     mesh.materials.append(mat)
@@ -491,20 +488,15 @@ def remake_sm_BSP(path,depth='-a'):
     p = os.popen(cmd)
 #    print(p.read())
     p.close()
-
+    
 def getBoundingBox(mesh):
-    bb = [0,0,0,0,0,0]
+    bb = [0]*6
     firstIteration = True
     for polygon in mesh.polygons:
         for vertex_index in polygon.vertices:
             v = mesh.vertices[vertex_index].co
             if firstIteration:
-                bb[0] = v[0]
-                bb[1] = v[2]
-                bb[2] = v[1]
-                bb[3] = v[0]
-                bb[4] = v[2]
-                bb[5] = v[1]
+                bb = [v[0], v[2], v[1], v[0], v[2], v[1]]
                 firstIteration = False
             else:
                 bb[0] = min(bb[0],v[0])
@@ -514,7 +506,14 @@ def getBoundingBox(mesh):
                 bb[4] = max(bb[4],v[2])
                 bb[5] = max(bb[5],v[1])
     return(bb)
-
+def getUnionBoundingBox(bb_list):
+    bb_union = bb_list[0]
+    for bb in bb_list:
+        for i in range(3):
+            bb_union[i] = min(bb_union[i],bb[i])
+            bb_union[i+3] = max(bb_union[i+3],bb[i+3])
+    return(bb_union)
+    
 def sm_col_export(f, object, materialID, applyTrans, sceneScale):
     object = bf42_duplicateSpecialObject(object)
     if applyTrans:
@@ -523,8 +522,6 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
     bf42_triangulateObject(object)
     mesh = object.data
     
-    startOfSection = f.tell()
-    sm_i_w(f, 0) #sizeOfSection
     sm_B_w(f, (250, 194, 151, 235)) #unknown1
     sm_i_w(f, 5) #unknown2
     
@@ -560,26 +557,20 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
         sm_i_short_w(f, (face[0],face[1],face[2]))
         face_materialID = materialID if materialID != None else faces_materialID[faceNumber]
         sm_i_short_w(f, face_materialID) #materialID
+    #bsp_block:
     sm_i_w(f, len(faces)) #unknown3
     sm_i_w(f, 0) #numBspEdges
     sm_i_w(f, len(faceNormals)) #numFaceNormals
     for faceNumber, faceNormal in enumerate(faceNormals):
-        sm_f_w(f, faceNormal)
-        vertex = faces[faceNumber]
+        sm_f_w(f, (faceNormal[0],faceNormal[2],faceNormal[1]))
+        face = faces[faceNumber]
         face_materialID = materialID if materialID != None else faces_materialID[faceNumber]
-        sm_i_w(f, (0,vertex[0],vertex[1],vertex[2],face_materialID)) #(0, sm_COL_face.vertices, sm_COL_face.materialID)
-    
-    boundingBox = getBoundingBox(mesh)
-    sm_f_w(f, boundingBox) #boundingBox
+        sm_i_w(f, (0,face[0],face[1],face[2],face_materialID)) #(0, sm_COL_face.vertices, sm_COL_face.materialID)
+    sm_f_w(f,[0]*6) #apparently boundingBox is not needed for base node
     sm_i_w(f, len(faces)) #facenum
-    for faceNumber, face in enumerate(faces):
+    for faceNumber in range(len(faces)):
         sm_i_w(f,faceNumber)
     sm_B_w(f,(0,0)) #childeren
-    
-    sizeOfSection = f.tell()-startOfSection-4
-    f.seek(startOfSection)
-    sm_i_w(f, sizeOfSection) #sizeOfSection
-    f.seek(0,2)
     
     bpy.data.objects.remove(object)
 
@@ -652,17 +643,16 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
                     else:
                         vertexLightmapUVco = (light_uv_layer.data[loop_index].uv[0],1-light_uv_layer.data[loop_index].uv[1])
                     ref = (vertex.co, vertexTextureUVco, vertexLightmapUVco)
-                    vertices_ref_index = 0 # this is to avoid the index function, for speed
-                    if not ref in vertices_ref:
+                    try:
+                        vertices_ref_index = vertices_ref.index(ref)
+                    except ValueError:
                         vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
                         vertexNormals.append(tuple(vertex.normal))
                         vertexTextureUV.append(vertexTextureUVco)
                         if not light_uv_layer == None and addLightMapUV:
                             vertexLightmapUV.append(vertexLightmapUVco)
                         vertices_ref.append(ref)
-                        vertices_ref_index = len(vertices_ref)-1 # this is to avoid the index function
-                    if vertices_ref_index == 0: # this is to avoid the index function
-                        vertices_ref_index = vertices_ref.index(ref)
+                        vertices_ref_index = len(vertices_ref)-1
                     face.append(vertices_ref_index)
                 faces.append((face[0],face[2],face[1])) # correct for normal
         if len(faces) > 0:
@@ -701,13 +691,14 @@ def bf42_import_sm_debug(path):
 #        print('COLLISION_COUNT: {}'.format(numTopModels))
         
         for collisionMeshNumber in range(numCollisionMeshes):
+            sizeOfSection = sm_i(f)
             startOffset = f.tell()
             print('COL_{}'.format(collisionMeshNumber))
             collisionMesh = sm_COL_mesh().read(f)
-            bsp_node = collisionMesh.bsp_node_1
+            bsp_node = collisionMesh.bsp.baseNode
             print(count_nodes(bsp_node))
             print(count_nodeFaces(bsp_node))
-            endOffset = startOffset+4+collisionMesh.sizeOfSection
+            endOffset = startOffset+sizeOfSection
             
             if endOffset != f.tell():
                 print("\tError!!!!!")
@@ -823,6 +814,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
 #        print('COLLISION_COUNT: {}'.format(numTopModels))
         
         for collisionMeshNumber in range(numCollisionMeshes):
+            sizeOfSection = sm_i(f)
             if add_Collision:
                 startOffset = f.tell()
                 print('COL_{}'.format(collisionMeshNumber))
@@ -845,13 +837,13 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 for materialID in materialIDs:
                     bf42_addMaterialID_Material(mesh,materialID)
                 object.scale = (sceneScale,sceneScale,sceneScale)
-                endOffset = startOffset+4+collisionMesh.sizeOfSection
+                endOffset = startOffset+sizeOfSection
                 if endOffset != f.tell():
                     print("\tError!!!!!")
                     print('\t{} != {}'.format(f.tell(),endOffset))
                     f.seek(endOffset) 
             else:
-                f.seek(sm_i(f),1) #fast skip over COL meshes
+                f.seek(sizeOfSection,1) #fast skip over COL meshes
         
         numLods = sm_i(f)
         numLodsToPars = numLods
@@ -932,7 +924,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
                 if applyTrans:
                     bf42_applyTransformObject(object)
                 object.data.transform(Matrix.Scale(1/sceneScale, 4))
-                bf42_triangulateObject(object)
+                # bf42_triangulateObject(object)
                 boundingBox = getBoundingBox(object.data)
                 bpy.data.objects.remove(object)
             elif len(LOD_objects) > 0: # or should I use col?
@@ -940,7 +932,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
                 if applyTrans:
                     bf42_applyTransformObject(object)
                 object.data.transform(Matrix.Scale(1/sceneScale, 4))
-                bf42_triangulateObject(object)
+                # bf42_triangulateObject(object)
                 boundingBox = getBoundingBox(object.data)
                 bpy.data.objects.remove(object)
             elif len(COL_objects) > 0:  # just to be sure 
@@ -948,7 +940,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
                 if applyTrans:
                     bf42_applyTransformObject(object)
                 object.data.transform(Matrix.Scale(1/sceneScale, 4))
-                bf42_triangulateObject(object)
+                # bf42_triangulateObject(object)
                 boundingBox = getBoundingBox(object.data) # or should I use col?
                 bpy.data.objects.remove(object)
             else:
@@ -964,7 +956,13 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
             sm_i_w(f, len(COL_objects))
             for COL_object in COL_objects:
                 # materialID is None when not forced
+                startOfSection = f.tell()
+                sm_i_w(f, 0) #sizeOfSection
                 sm_col_export(f, COL_object, materialID, applyTrans, sceneScale)
+                sizeOfSection = f.tell()-startOfSection-4
+                f.seek(startOfSection)
+                sm_i_w(f, sizeOfSection) #sizeOfSection
+                f.seek(0,2)
 
             
             #LODs

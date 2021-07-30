@@ -6,6 +6,7 @@ from math import pi
 
 from .heightmap import bf42_heightmap
 from .standard_mesh import bf42_import_sm, bf42_export_sm
+from .tree_mesh import bf42_import_tm, bf42_export_tm
 from .staticObjects import *
 from .misc import *
 
@@ -136,7 +137,6 @@ class BF1942_ImportSM_Batch(Operator):
         add_Shadow = BF1942Settings.Shadow
         merge_shared_verticies = BF1942Settings.Merge_shared_verticies
         sceneScale = BF1942Settings.sceneScale
-        print("")
         for (dirPath, dirNames, fileNames) in os.walk(dir):
             for fileName in fileNames:
                 basename = bpy.path.basename(fileName).rsplit('.',1)
@@ -144,6 +144,67 @@ class BF1942_ImportSM_Batch(Operator):
                     if basename[1] == 'sm':
                         path = os.path.join(dirPath, fileName)
                         bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale)
+        return {'FINISHED'}
+class BF1942_ImportTM(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importtm"
+    bl_label = "Import BF1942 Tree Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        path = BF1942Settings.ImportTMFile
+        add_BoundingBox = BF1942Settings.BoundingBoxesTM
+        add_Collision = BF1942Settings.CollisionTM
+        add_Visible = BF1942Settings.VisibleTM
+        merge_shared_verticies = BF1942Settings.Merge_shared_verticiesTM
+        sceneScale = BF1942Settings.sceneScale
+        bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+        return {'FINISHED'}
+class BF1942_ImportTM_Batch(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importtm_batch"
+    bl_label = "Import BF1942 Tree Mesh Batch"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        dir = BF1942Settings.ImportTMDir
+        add_BoundingBox = BF1942Settings.BoundingBoxesTM
+        add_Collision = BF1942Settings.CollisionTM
+        add_Visible = BF1942Settings.VisibleTM
+        merge_shared_verticies = BF1942Settings.Merge_shared_verticiesTM
+        sceneScale = BF1942Settings.sceneScale
+        for (dirPath, dirNames, fileNames) in os.walk(dir):
+            for fileName in fileNames:
+                basename = bpy.path.basename(fileName).rsplit('.',1)
+                if len(basename) > 1:
+                    if basename[1] == 'tm':
+                        path = os.path.join(dirPath, fileName)
+                        bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+        return {'FINISHED'}
+class BF1942_ExportTM(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exporttm"
+    bl_label = "Export BF1942 Tree Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+
+        dir = BF1942Settings.ExportTMDir
+        name = BF1942Settings.ExportTMName
+        materialID = None
+        if BF1942Settings.ExportTMForceMaterialID:
+            materialID = BF1942Settings.ExportTMMaterialID
+        AngleCount = BF1942Settings.ExportTMAngleCount
+        COL_object = BF1942Settings.ExportTMCOL
+        Branch_object = BF1942Settings.ExportTMBranch
+        Trunk_object = BF1942Settings.ExportTMTrunk
+        Sprite_object = BF1942Settings.ExportTMSprite
+        applyTrans = BF1942Settings.ExportTMApplyTransformation
+        sceneScale = BF1942Settings.sceneScale
+        bf42_export_tm(dir, name, COL_object, Branch_object, Trunk_object, Sprite_object, materialID, AngleCount, applyTrans, sceneScale)
         return {'FINISHED'}
 class BF1942_ImportStaticObjects(Operator):
     """An Operator for the BF1942 addon"""
@@ -215,7 +276,27 @@ class BF1942_ExportStaticObjects(Operator):
             True
         bf42_WriteCon(path, objects)
         return {'FINISHED'}
+def ObjectTemplateListCallback(self, context):
+    return [(item, item,"") for i, item in enumerate(bpy.context.scene.BF1942Settings.ObjectTemplateList)]
+class BF1942_AddStaticObject(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.addstaticobject"
+    bl_label = "Add Static Object"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_property = "ObjectTemplateListLocal"
+    
+    ObjectTemplateListLocal: EnumProperty(
+        items=ObjectTemplateListCallback
+    )
 
+    def execute(self, context):
+        self.report({'INFO'}, "Selected: %s" % self.ObjectTemplateListLocal)
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        bpy.context.scene.BF1942Settings.ObjectTemplateList.append('sdf')
+        context.window_manager.invoke_search_popup(self)
+        return {'FINISHED'}
 
 
 
@@ -307,16 +388,16 @@ class BF1942_PT_ImportSM(Panel):
         
         
         col = layout.column(align=True)
-        col.prop(settings, 'BoundingBox')
+        col.prop(settings, 'BoundingBox', text='Bounding Box')
         col.prop(settings, 'Collision')
         col.prop(settings, 'Visible')
-        col.prop(settings, 'OnlyMainLOD')
+        col.prop(settings, 'OnlyMainLOD', text='Only Main LOD')
         col.prop(settings, 'Shadow')
-        col.prop(settings, 'Merge_shared_verticies')
-        col.prop(settings, 'ImportSMFile')
+        col.prop(settings, 'Merge_shared_verticies', text='Merge shared vertices')
+        col.prop(settings, 'ImportSMFile', text='File')
         # row = layout.row(align=True)
         col.operator("bf1942.importsm", text="Import")
-        col.prop(settings, 'ImportSMDir')
+        col.prop(settings, 'ImportSMDir', text='Folder')
         col.operator("bf1942.importsm_batch", text="Import Batch")
 
 class BF1942_PT_ExportSM(Panel):
@@ -373,6 +454,57 @@ class BF1942_PT_ExportSM(Panel):
         col.prop(settings, 'ExportSMApplyTransformation', text='apply object transformation/scale')
         col.operator("bf1942.exportsm", text="Export")
 
+class BF1942_PT_ImportTM(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Import Tree Mesh"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        scn = context.scene
+        settings = scn.BF1942Settings
+        layout = self.layout
+        
+        
+        col = layout.column(align=True)
+        col.prop(settings, 'BoundingBoxesTM', text='Bounding Boxes')
+        col.prop(settings, 'CollisionTM', text='Collision')
+        col.prop(settings, 'VisibleTM', text='Visible')
+        col.prop(settings, 'Merge_shared_verticiesTM', text='Merge shared vertices')
+        col.prop(settings, 'ImportTMFile', text='File')
+        # row = layout.row(align=True)
+        col.operator("bf1942.importtm", text="Import")
+        col.prop(settings, 'ImportTMDir', text='Folder')
+        col.operator("bf1942.importtm_batch", text="Import Batch")
+
+class BF1942_PT_ExportTM(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Export Tree Mesh"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        scn = context.scene
+        settings = scn.BF1942Settings
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        layout = self.layout
+        
+        col = layout.column(align=True)
+        col.prop(settings, 'ExportTMDir', text='folder')
+        col.prop(settings, 'ExportTMName', text='name')
+        col.prop(settings, 'ExportTMForceMaterialID', text='overide material ID')
+        if BF1942Settings.ExportTMForceMaterialID:
+            col.prop(settings, 'ExportTMMaterialID', text='MaterialID')
+        col.prop(settings, 'ExportTMAngleCount', text='Angle count')
+        col.prop(settings, 'ExportTMCOL', text='COL')
+        col.prop(settings, 'ExportTMTrunk', text='Trunk')
+        col.prop(settings, 'ExportTMBranch', text='Branch')
+        col.prop(settings, 'ExportTMSprite', text='Sprite')
+        col.prop(settings, 'ExportTMApplyTransformation', text='apply object transformation/scale')
+        col.operator("bf1942.exporttm", text="Export")
+
 class BF1942_PT_ImportCon(Panel):
     bl_space_type = "VIEW_3D"
     bl_context = "objectmode"
@@ -387,8 +519,12 @@ class BF1942_PT_ImportCon(Panel):
         
         col = layout.column(align=True)
         col.prop(settings, 'ImportConFile', text="File")
+        # col.prop(settings, 'ImportConFile', text="Mod folder")
+        # col.prop(settings, 'ImportConFile', text="Map folder")
+        # col.operator("bf1942.addstaticobject", text="Load static object list")
         col.operator("bf1942.importstaticobjects", text="Import")
-        col.operator("bf1942.exportstaticobjects", text="Export")
+        # col.operator("bf1942.addstaticobject", text="Add static object")
+        # col.operator("bf1942.exportstaticobjects", text="Export")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -591,6 +727,7 @@ class BF1942_sm_Properties(PropertyGroup):
         min = 0
     )
 
+
 class BF1942Settings(PropertyGroup):
 
     ################# world settings ###################
@@ -720,104 +857,105 @@ class BF1942Settings(PropertyGroup):
     
     ################# .sm Export settings ###################
     
-    ExportSMDir : StringProperty(
-        name = "ExportSMDir",
-        description = "ExportSMDir",
+    ExportSMDir : StringProperty(name = "ExportSMDir", description = "ExportSMDir", default = "", subtype="DIR_PATH")
+    
+    ExportSMName : StringProperty(name = "ExportSMName", description = "ExportSMName", default = "")
+
+    ExportSMUseCustomBoundingBox : BoolProperty(name = "ExportSMUseCustomBoundingBox", description = "ExportSMUseCustomBoundingBox", default = False)
+    
+    ExportSMCustomBoundingBox : PointerProperty(type=bpy.types.Object)
+
+    ExportSMForceMaterialID : BoolProperty(name = "ExportSMForceMaterialID", description = "ExportSMForceMaterialID", default = False)
+    
+    ExportSMMaterialID : IntProperty(name="ExportSMMaterialID", default = 45, min = 0)
+    
+    ExportSMCOL1 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMCOL2 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMLOD1 : PointerProperty(type=bpy.types.Object)
+
+    ExportSMAutoGenUV : BoolProperty(name = "ExportSMAutoGenUV", description = "auto genrate lightMapUV when not existing", default = True)
+
+    ExportSMAutoGenLODs : BoolProperty(name = "ExportSMAutoGenLODs", description = "ExportSMAutoGenLODs", default = False)
+
+    ExportSMNumberOfLODs : IntProperty(name = "ExportSMNumberOfLODs", description = "ExportSMNumberOfLODs", default = 6, min = 0, max = 6)
+    
+    ExportSMLOD2 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMLOD3 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMLOD4 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMLOD5 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMLOD6 : PointerProperty(type=bpy.types.Object)
+    
+    ExportSMShadowLOD : PointerProperty(type=bpy.types.Object)
+
+    ExportSMApplyTransformation : BoolProperty(name = "ExportSMApplyTransformation", description = "ExportSMApplyTransformation", default = True)
+
+    ################# .tm Import settings ###################
+    
+    ImportTMFile : StringProperty(
+        name = "ImportTMFile",
+        description = "ImportTMFile",
+        default = "",
+        subtype="FILE_PATH"
+        )
+        
+    ImportTMDir : StringProperty(
+        name = "ImportTMDir",
+        description = "ImportTMDir",
         default = "",
         subtype="DIR_PATH"
         )
-    
-    ExportSMName : StringProperty(
-        name = "ExportSMName",
-        description = "ExportSMName",
-        default = ""
-        )
 
-    ExportSMUseCustomBoundingBox : BoolProperty(
-        name = "ExportSMUseCustomBoundingBox",
-        description = "ExportSMUseCustomBoundingBox",
+    BoundingBoxesTM : BoolProperty(
+        name = "BoundingBoxesTM",
+        description = "BoundingBoxesTM",
         default = False
         )
-    
-    ExportSMCustomBoundingBox : PointerProperty(
-        type=bpy.types.Object
-        )
 
-    ExportSMForceMaterialID : BoolProperty(
-        name = "ExportSMForceMaterialID",
-        description = "ExportSMForceMaterialID",
+    CollisionTM : BoolProperty(
+        name = "CollisionTM",
+        description = "CollisionTM",
         default = False
         )
-    
-    ExportSMMaterialID : IntProperty(
-        name="ExportSMMaterialID",
-        default = 45,
-        min = 0
-    )
-    
-    ExportSMCOL1 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMCOL2 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMLOD1 : PointerProperty(
-        type=bpy.types.Object
-        )
 
-    ExportSMAutoGenUV : BoolProperty(
-        name = "ExportSMAutoGenUV",
-        description = "auto genrate lightMapUV when not existing",
+    VisibleTM : BoolProperty(
+        name = "VisibleTM",
+        description = "VisibleTM",
         default = True
         )
 
-    ExportSMAutoGenLODs : BoolProperty(
-        name = "ExportSMAutoGenLODs",
-        description = "ExportSMAutoGenLODs",
-        default = False
-        )
-
-    ExportSMNumberOfLODs : IntProperty(
-        name = "ExportSMNumberOfLODs",
-        description = "ExportSMNumberOfLODs",
-        default = 6,
-        min = 0,
-        max = 6
-        )
-    
-    ExportSMLOD2 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMLOD3 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMLOD4 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMLOD5 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMLOD6 : PointerProperty(
-        type=bpy.types.Object
-        )
-    
-    ExportSMShadowLOD : PointerProperty(
-        type=bpy.types.Object
-        )
-
-    ExportSMApplyTransformation : BoolProperty(
-        name = "ExportSMApplyTransformation",
-        description = "ExportSMApplyTransformation",
+    Merge_shared_verticiesTM : BoolProperty(
+        name = "Merge_shared_verticiesTM",
+        description = "Merge shared verticies",
         default = True
         )
     
+    ################# .tm Export settings ###################
     
+    ExportTMDir : StringProperty(name = "ExportTMDir", description = "ExportTMDir", default = "", subtype="DIR_PATH")
+    
+    ExportTMName : StringProperty(name = "ExportTMName", description = "ExportTMName", default = "")
+
+    ExportTMForceMaterialID : BoolProperty(name = "ExportTMForceMaterialID", description = "ExportTMForceMaterialID", default = False)
+    
+    ExportTMMaterialID : IntProperty(name="ExportTMMaterialID", default = 45, min = 0)
+    
+    ExportTMAngleCount : IntProperty(name="ExportTMAngleCount", default = 8, min = 1)
+    
+    ExportTMCOL : PointerProperty(type=bpy.types.Object)
+    
+    ExportTMTrunk : PointerProperty(type=bpy.types.Object)
+    
+    ExportTMBranch : PointerProperty(type=bpy.types.Object)
+    
+    ExportTMSprite : PointerProperty(type=bpy.types.Object)
+
+    ExportTMApplyTransformation : BoolProperty(name = "ExportTMApplyTransformation", description = "ExportTMApplyTransformation", default = True)
     
     ################# StaticObjects.con settings ###################
     
@@ -827,6 +965,10 @@ class BF1942Settings(PropertyGroup):
         default = "",
         subtype="FILE_PATH"
         )
+    ObjectTemplateList = ['test','test1','test2']
+    
+
+
 
 
 

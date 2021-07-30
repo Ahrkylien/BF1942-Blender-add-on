@@ -35,13 +35,21 @@ classes = (
     BF1942_PT_ImportSM,
     BF1942_PT_ExportSM,
     
+    BF1942_ImportTM,
+    BF1942_ImportTM_Batch,
+    BF1942_ExportTM,
+    BF1942_PT_ImportTM,
+    BF1942_PT_ExportTM,
+    
     BF1942_ImportStaticObjects,
     BF1942_ExportStaticObjects,
     BF1942_PT_ImportCon,
     
     BF1942_PT_material,
     
-    BF1942AddonPreferences
+    BF1942AddonPreferences,
+    
+    BF1942_AddStaticObject,
     
     )
 
