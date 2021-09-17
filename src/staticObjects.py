@@ -28,9 +28,9 @@ class bf42_Object:
     def __init__(self, name):
         self.name = name
 # parses .con file and returns list of objects
-def bf42_ParseCon(filename):
+def bf42_ParseCon(path):
     objects = []
-    with open(filename, 'r') as fp:
+    with open(bpy.path.abspath(path), 'r') as fp:
         for line in fp.readlines():
             
             # split line by spaces
@@ -50,8 +50,8 @@ def bf42_ParseCon(filename):
     return objects
     
 # parses .con file and returns list of objects
-def bf42_WriteCon(filename, objects):
-    with open(filename, 'w') as f:
+def bf42_WriteCon(path, objects):
+    with open(bpy.path.abspath(path), 'w') as f:
         for object in objects:
             p = object.absolutePosition
             r = object.rotation
