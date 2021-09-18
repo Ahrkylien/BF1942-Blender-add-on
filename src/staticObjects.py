@@ -30,7 +30,7 @@ class bf42_Object:
 # parses .con file and returns list of objects
 def bf42_ParseCon(path):
     objects = []
-    with open(bpy.path.abspath(path), 'r') as fp:
+    with open(path, 'r') as fp:
         for line in fp.readlines():
             
             # split line by spaces
@@ -51,7 +51,7 @@ def bf42_ParseCon(path):
     
 # parses .con file and returns list of objects
 def bf42_WriteCon(path, objects):
-    with open(bpy.path.abspath(path), 'w') as f:
+    with open(path, 'w') as f:
         for object in objects:
             p = object.absolutePosition
             r = object.rotation

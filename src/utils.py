@@ -215,7 +215,7 @@ class BF1942_ImportStaticObjects(Operator):
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
         
-        path = BF1942Settings.ImportConFile
+        path = bpy.path.abspath(BF1942Settings.ImportConFile)
         sceneScale = BF1942Settings.sceneScale
         
         objects_not_found = []
@@ -253,7 +253,7 @@ class BF1942_ExportStaticObjects(Operator):
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
         
-        path = BF1942Settings.ImportConFile
+        path = bpy.path.abspath(BF1942Settings.ImportConFile)
         sceneScale = BF1942Settings.sceneScale
         objects = []
         
@@ -268,7 +268,7 @@ class BF1942_ExportStaticObjects(Operator):
                 q = static_object.rotation_quaternion
             r = q.to_euler("YXZ")
             print(r)
-            newObject = bf42_Object(revomeBlenderSuffix(static_object.name))
+            newObject = bf42_Object(removesuffix(revomeBlenderSuffix(static_object.name),"_LOD1"))
             newObject.absolutePosition = bf42_vec3((p.x/sceneScale,p.y/sceneScale,p.z/sceneScale))
             newObject.rotation = bf42_vec3((-r.z/pi*180,-r.y/pi*180,-r.x/pi*180))
             objects.append(newObject)
