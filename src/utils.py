@@ -489,6 +489,8 @@ class BF1942_ExportLightMaps(Operator):
         else:
             if level != "":
                 path = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\ObjectLightmaps")
+                if not os.path.exists(path):
+                    os.makedirs(path)
             else:
                 print("Error: No Level and no export file selected. Please select one")
                 return {'CANCELLED'}
