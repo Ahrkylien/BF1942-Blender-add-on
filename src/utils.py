@@ -1,14 +1,24 @@
 import bpy
 from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty, StringProperty, FloatVectorProperty, EnumProperty
 from bpy.types import Operator, Panel, PropertyGroup, AddonPreferences
+from bpy_extras.view3d_utils import region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 import os
 from math import pi
+import pickle 
 
 from .heightmap import bf42_heightmap
 from .standard_mesh import bf42_import_sm, bf42_export_sm
 from .tree_mesh import bf42_import_tm, bf42_export_tm
-from .staticObjects import *
+from .bf42_script import *
+from .light_map import light_map_export
+from .place_object import bf42_placeObject
 from .misc import *
+
+#method to store objects as strings:
+def dumps(objectToDump):
+    return(pickle.dumps(objectToDump).hex())
+def loads(stringToLoad):
+    return(pickle.loads(bytes.fromhex(stringToLoad)))
 
 #Operators
 class BF1942_ImportHeightMap(Operator):
@@ -71,7 +81,7 @@ class BF1942_ExportSM(Operator):
         # ExportSMAutoGenLODs
         # ExportSMNumberOfLODs
         
-        dir = BF1942Settings.ExportSMDir
+        dir = bpy.path.abspath(BF1942Settings.ExportSMDir)
         name = BF1942Settings.ExportSMName
         BoundingBox_object = None
         if BF1942Settings.ExportSMUseCustomBoundingBox:
@@ -111,7 +121,7 @@ class BF1942_ImportSM(Operator):
 
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
-        path = BF1942Settings.ImportSMFile
+        path = bpy.path.abspath(BF1942Settings.ImportSMFile)
         add_BoundingBox = BF1942Settings.BoundingBox
         add_Collision = BF1942Settings.Collision
         add_Visible = BF1942Settings.Visible
@@ -129,7 +139,7 @@ class BF1942_ImportSM_Batch(Operator):
 
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
-        dir = BF1942Settings.ImportSMDir
+        dir = bpy.path.abspath(BF1942Settings.ImportSMDir)
         add_BoundingBox = BF1942Settings.BoundingBox
         add_Collision = BF1942Settings.Collision
         add_Visible = BF1942Settings.Visible
@@ -153,7 +163,7 @@ class BF1942_ImportTM(Operator):
 
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
-        path = BF1942Settings.ImportTMFile
+        path =  bpy.path.abspath(BF1942Settings.ImportTMFile)
         add_BoundingBox = BF1942Settings.BoundingBoxesTM
         add_Collision = BF1942Settings.CollisionTM
         add_Visible = BF1942Settings.VisibleTM
@@ -169,19 +179,25 @@ class BF1942_ImportTM_Batch(Operator):
 
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
-        dir = BF1942Settings.ImportTMDir
+        dir =  bpy.path.abspath(BF1942Settings.ImportTMDir)
         add_BoundingBox = BF1942Settings.BoundingBoxesTM
         add_Collision = BF1942Settings.CollisionTM
         add_Visible = BF1942Settings.VisibleTM
         merge_shared_verticies = BF1942Settings.Merge_shared_verticiesTM
         sceneScale = BF1942Settings.sceneScale
+        pathList = []
         for (dirPath, dirNames, fileNames) in os.walk(dir):
             for fileName in fileNames:
                 basename = bpy.path.basename(fileName).rsplit('.',1)
                 if len(basename) > 1:
                     if basename[1] == 'tm':
-                        path = os.path.join(dirPath, fileName)
-                        bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+                        pathList.append(os.path.join(dirPath, fileName))
+        wm = bpy.context.window_manager
+        wm.progress_begin(0, len(pathList))
+        for i, path in enumerate(pathList):
+            bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+            wm.progress_update(i)
+        wm.progress_end()
         return {'FINISHED'}
 class BF1942_ExportTM(Operator):
     """An Operator for the BF1942 addon"""
@@ -192,7 +208,7 @@ class BF1942_ExportTM(Operator):
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
 
-        dir = BF1942Settings.ExportTMDir
+        dir = bpy.path.abspath(BF1942Settings.ExportTMDir)
         name = BF1942Settings.ExportTMName
         materialID = None
         if BF1942Settings.ExportTMForceMaterialID:
@@ -206,6 +222,116 @@ class BF1942_ExportTM(Operator):
         sceneScale = BF1942Settings.sceneScale
         bf42_export_tm(dir, name, COL_object, Branch_object, Trunk_object, Sprite_object, materialID, AngleCount, applyTrans, sceneScale)
         return {'FINISHED'}
+#### Level Editing: ####
+def LevelListCallback(self, context):
+    return [(item, item,"") for i, item in enumerate(loads(bpy.context.scene.BF1942Settings.LevelList))]
+class BF1942_SelectLevel(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.selectlevel"
+    bl_label = "Select Level"
+    bl_options = {'REGISTER', 'UNDO'}
+    bl_property = "LevelListLocal"
+    
+    LevelListLocal: EnumProperty(
+        items=LevelListCallback
+    )
+
+    def execute(self, context):
+        bpy.context.scene.BF1942Settings.SelectedLevel = self.LevelListLocal
+        return {'FINISHED'}
+
+    def invoke(self, context, event):
+        context.window_manager.invoke_search_popup(self)
+        return {'FINISHED'}
+class BF1942_ReadConFiles(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.readconfiles"
+    bl_label = "Read BF1942 Con files"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        
+        path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        
+        data = bf42_readAllConFiles(path,level)
+        BF1942Settings.AllBF42Data = dumps(data)
+        
+        #fill ObjectTemplateList:
+        ObjectTemplateList = []
+        for objectTemplate in data.objectTemplates:
+            meshList = bf42_listAllGeometries(objectTemplate)
+            ObjectTemplateList.append((objectTemplate.name,objectTemplate.type,len(meshList[0])))
+        BF1942Settings.ObjectTemplateList = dumps(ObjectTemplateList)
+        return {'FINISHED'}
+class BF1942_ImportLevelMeshes(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importlevelmeshes"
+    bl_label = "Import Mehes for Level"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        sceneScale = BF1942Settings.sceneScale
+        
+        StandardMeshes = []
+        TreeMeshes = []
+        StandardMeshesLevel = []
+        TreeMeshesLevel = []
+        
+        directory1 = os.path.join(base_path,"StandardMesh")
+        for path, subdirs, files in os.walk(directory1):
+            for name in files:
+                relPath = os.path.relpath(os.path.join(path, name),directory1)
+                extension = os.path.splitext(relPath)[1]
+                if extension == ".sm":
+                    StandardMeshes.append(relPath)
+        directory2 = os.path.join(base_path,"treeMesh")
+        for path, subdirs, files in os.walk(directory2):
+            for name in files:
+                relPath = os.path.relpath(os.path.join(path, name),directory2)
+                extension = os.path.splitext(relPath)[1]
+                if extension == ".tm":
+                    TreeMeshes.append(relPath)
+        if level != "":
+            directory3 = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\StandardMesh")
+            for path, subdirs, files in os.walk(directory3):
+                for name in files:
+                    relPath = os.path.relpath(os.path.join(path, name),directory3)
+                    extension = os.path.splitext(relPath)[1]
+                    if extension == ".sm":
+                        if relPath in StandardMeshes:
+                            StandardMeshes.remove(relPath)
+                        StandardMeshesLevel.append(relPath)
+            directory4 = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\treeMesh")
+            for path, subdirs, files in os.walk(directory4):
+                for name in files:
+                    relPath = os.path.relpath(os.path.join(path, name),directory4)
+                    extension = os.path.splitext(relPath)[1]
+                    if extension == ".tm":
+                        if relPath in TreeMeshes:
+                            TreeMeshes.remove(relPath)
+                        TreeMeshesLevel.append(relPath)
+        
+        wm = bpy.context.window_manager
+        wm.progress_begin(0, len(StandardMeshes)+len(TreeMeshes)+len(StandardMeshesLevel)+len(TreeMeshesLevel))
+        for i, StandardMesh in enumerate(StandardMeshes):
+            bf42_import_sm(os.path.join(directory1, StandardMesh), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMesh)[0])
+            wm.progress_update(i)
+        for i, TreeMesh in enumerate(TreeMeshes):
+            bf42_import_tm(os.path.join(directory2, TreeMesh), False, False, False, True, True, sceneScale, os.path.splitext(TreeMesh)[0])
+            wm.progress_update(i)
+        for i, StandardMeshLevel in enumerate(StandardMeshesLevel):
+            bf42_import_sm(os.path.join(directory3, StandardMeshLevel), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMeshLevel)[0])
+            wm.progress_update(i)
+        for i, TreeMeshLevel in enumerate(TreeMeshesLevel):
+            bf42_import_tm(os.path.join(directory4, TreeMeshLevel), False, False, False, True, True, sceneScale, os.path.splitext(TreeMeshLevel)[0])
+            wm.progress_update(i)
+        wm.progress_end()
+        return {'FINISHED'}
 class BF1942_ImportStaticObjects(Operator):
     """An Operator for the BF1942 addon"""
     bl_idname = "bf1942.importstaticobjects"
@@ -215,69 +341,21 @@ class BF1942_ImportStaticObjects(Operator):
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
         
-        path = bpy.path.abspath(BF1942Settings.ImportConFile)
         sceneScale = BF1942Settings.sceneScale
+        loadFarLOD = False
         
-        objects_not_found = []
-        static_objects = bf42_ParseCon(path)
-        object_collection = bf42_getObjectsCollection()
-        for static_object in static_objects:
-            meshFound = False
-            for object in object_collection.objects:
-                if removesuffix(object.name,"_LOD1").lower() == static_object.name.lower():
-                    v=static_object.absolutePosition
-                    r=static_object.rotation
-                    new_object = object.copy()
-                    new_object.location = (v.x*sceneScale, v.y*sceneScale, v.z*sceneScale)
-                    new_object.rotation_euler = (-r.z*pi/180, -r.y*pi/180, -r.x*pi/180)
-                    new_object.rotation_mode = "YXZ"
-                    new_object.name = static_object.name
-                    bf42_addStaticObject(new_object)
-                    meshFound = True
-                    break
-            if not meshFound:
-                if not static_object.name.lower() in objects_not_found:
-                    objects_not_found.append(static_object.name.lower())
-        if objects_not_found != []:
-            popupMessage("warnings",["Some Objects not found, check console message"])
-            print("\n ####### These Static Objects don't exist in bf42_environment->bf42_objects:")
-            for objects_name in objects_not_found:
-                print(objects_name)
-        return {'FINISHED'}
-class BF1942_ExportStaticObjects(Operator):
-    """An Operator for the BF1942 addon"""
-    bl_idname = "bf1942.exportstaticobjects"
-    bl_label = "Export BF1942 StaticObject.con"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        BF1942Settings = bpy.context.scene.BF1942Settings
+        data = loads(BF1942Settings.AllBF42Data)
         
-        path = bpy.path.abspath(BF1942Settings.ImportConFile)
-        sceneScale = BF1942Settings.sceneScale
-        objects = []
-        
-        StaticObject_collection = bf42_getStaticObjectsCollection()
-        static_object = zip(StaticObject_collection.children, StaticObject_collection.objects)
-        for static_object in StaticObject_collection.objects:
-            p = static_object.location
-            if 'Z' in static_object.rotation_mode:
-                q = static_object.rotation_euler.to_quaternion()
-                print(q)
+        for object in data.staticObjects:
+            if object.template_link != None:
+                bf42_placeObject(object.template_link, sceneScale, object.absolutePosition, object.rotation)
             else:
-                q = static_object.rotation_quaternion
-            r = q.to_euler("YXZ")
-            print(r)
-            newObject = bf42_Object(removesuffix(revomeBlenderSuffix(static_object.name),"_LOD1"))
-            newObject.absolutePosition = bf42_vec3((p.x/sceneScale,p.y/sceneScale,p.z/sceneScale))
-            newObject.rotation = bf42_vec3((-r.z/pi*180,-r.y/pi*180,-r.x/pi*180))
-            objects.append(newObject)
-        for static_object in StaticObject_collection.children:
-            True
-        bf42_WriteCon(path, objects)
+                print("Error: "+object.template+" objectTemplate does not exist!!")
+            # popupMessage("warnings",["Some Objects not found, check console message"])
+        bf42_hide_bf42_multi_mesh_objects()
         return {'FINISHED'}
 def ObjectTemplateListCallback(self, context):
-    return [(item, item,"") for i, item in enumerate(bpy.context.scene.BF1942Settings.ObjectTemplateList)]
+    return [(item[0], item[0],"") for i, item in enumerate(loads(bpy.context.scene.BF1942Settings.ObjectTemplateList))]
 class BF1942_AddStaticObject(Operator):
     """An Operator for the BF1942 addon"""
     bl_idname = "bf1942.addstaticobject"
@@ -290,13 +368,153 @@ class BF1942_AddStaticObject(Operator):
     )
 
     def execute(self, context):
-        self.report({'INFO'}, "Selected: %s" % self.ObjectTemplateListLocal)
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        data = loads(BF1942Settings.AllBF42Data)
+        sceneScale = BF1942Settings.sceneScale
+        ObjectTemplate = data.getObjectTemplate(self.ObjectTemplateListLocal)
+        if ObjectTemplate != None:
+            object = bf42_placeObject(ObjectTemplate, sceneScale)
+            if object != None:
+                bpy.ops.object.select_all(action='DESELECT')
+                object.select_set(True)
+                BF1942Settings.SelectedObject = object
+                bpy.ops.bf1942.addstaticobject_modal_timer_operator()
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        bpy.context.scene.BF1942Settings.ObjectTemplateList.append('sdf')
         context.window_manager.invoke_search_popup(self)
         return {'FINISHED'}
+class BF1942_AddStaticObjectModalTimerOperator(bpy.types.Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.addstaticobject_modal_timer_operator"
+    bl_label = "Add Object on Click"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    _timer = None
+
+    def modal(self, context, event):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        sceneScale = BF1942Settings.sceneScale
+        if event.type in {'RIGHTMOUSE', 'ESC'}:
+            self.cancel(context)
+            return {'CANCELLED'}
+        if event.type == 'MOUSEMOVE' and event.value == 'RELEASE':
+            if context.area.type == 'VIEW_3D':
+                r3d = context.space_data.region_3d
+                x, y = event.mouse_region_x, event.mouse_region_y
+                origin = region_2d_to_origin_3d(context.region, r3d, (x, y))
+                direction = region_2d_to_vector_3d(context.region, r3d, (x, y))
+                distance = 40*sceneScale
+                loc = [origin[i]+direction[i]*distance for i in range(3)]
+                mainCollection = bf42_getCollection()
+                terrain_object = bf42_get_object(mainCollection,"terrain")
+                if terrain_object != None:
+                    scale = terrain_object.scale
+                    result, location, normal, index = terrain_object.ray_cast([origin[i]/scale[i] for i in range(3)],direction)
+                    if result:
+                        loc = [location[i]*scale[i] for i in range(3)]
+                        print(location)
+                loc = [max(loc[i],0) for i in range(3)]
+                SelectedObject = bpy.context.scene.BF1942Settings.SelectedObject
+                if SelectedObject != None:
+                    SelectedObject.location=loc
+                else:
+                    return {'CANCELLED'}
+        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
+            if context.area.type == 'VIEW_3D':
+                self.cancel(context)
+                return {'CANCELLED'}
+        if event.type == 'TIMER':
+            pass
+        return {'PASS_THROUGH'}
+
+    def execute(self, context):
+        if context.area.type != 'VIEW_3D':
+            print("Must use in a 3d region")
+            return {'CANCELLED'}
+        wm = context.window_manager
+        self._timer = wm.event_timer_add(0.1, window=context.window)
+        wm.modal_handler_add(self)
+        return {'RUNNING_MODAL'}
+
+    def cancel(self, context):
+        wm = context.window_manager
+        wm.event_timer_remove(self._timer)
+class BF1942_ExportStaticObjects(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportstaticobjects"
+    bl_label = "Export BF1942 StaticObject.con"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        sceneScale = BF1942Settings.sceneScale
+        data = loads(BF1942Settings.AllBF42Data)
+        
+        if BF1942Settings.ExportConStaticFileBool:
+            path = bpy.path.abspath(BF1942Settings.ExportConStaticFile)
+        else:
+            if level != "":
+                path = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\StaticObjects.con")
+            else:
+                print("Error: No Level and no export file selected. Please select one")
+                return {'CANCELLED'}
+        objects = []
+        
+        StaticObject_collection = bf42_getStaticObjectsCollection()
+        # static_object = zip(StaticObject_collection.children, StaticObject_collection.objects)
+        for static_object in StaticObject_collection.objects:
+            newObject = BF42_Object(removesuffix(revomeBlenderSuffix(static_object.name),"_LOD1"))
+            newObject.absolutePosition = bf42_getPosition(static_object, sceneScale)
+            newObject.rotation = bf42_getRotation(static_object)
+            objects.append(newObject)
+        bf42_writeStaticCon(path, objects, data)
+        return {'FINISHED'}
+class BF1942_ExportLightMaps(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportlightmaps"
+    bl_label = "Export BF1942 LightMaps"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        sceneScale = BF1942Settings.sceneScale
+        
+        if BF1942Settings.ExportLightMapDirBool:
+            path = bpy.path.abspath(BF1942Settings.LightMapDir)
+        else:
+            if level != "":
+                path = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\ObjectLightmaps")
+            else:
+                print("Error: No Level and no export file selected. Please select one")
+                return {'CANCELLED'}
+        
+        StaticObject_objects = bf42_getStaticObjectsCollection().objects
+        # StaticObject_objects = zip(StaticObject_collection.children, StaticObject_collection.objects)
+        #duplicate all objects and their children:
+        objects = []
+        for object in StaticObject_objects:
+            if object.instance_type == 'COLLECTION':
+                if object.instance_collection != None:
+                    for child in object.instance_collection.objects:
+                        objects.append(bf42_duplicateSpecialObject(child))
+                        objects[-1].location =  bf42_getPosition(child).rotate(bf42_getRotation(object)).add(bf42_getPosition(object)).toBlend()
+                        bf42_applyRotation(objects[-1], bf42_getRotation(object).add(bf42_getRotation(child)))
+            else:
+                objects.append(bf42_duplicateSpecialObject(object))
+        bf42_toggle_hide_static_objects(True)
+        light_map_export(StaticObject_objects, path, sceneScale)
+        bf42_toggle_hide_static_objects(False)
+        for object in objects:
+            bpy.data.objects.remove(object)
+        return {'FINISHED'}
+
+
+
 
 
 
@@ -509,22 +727,39 @@ class BF1942_PT_ImportCon(Panel):
     bl_space_type = "VIEW_3D"
     bl_context = "objectmode"
     bl_region_type = "UI"
-    bl_label = "StaticObjects.con"
+    bl_label = "Level/Map Editing"
     bl_category = "BF1942"
 
     def draw(self, context):
         scn = context.scene
         settings = scn.BF1942Settings
+        BF1942Settings = bpy.context.scene.BF1942Settings
         layout = self.layout
         
         col = layout.column(align=True)
-        col.prop(settings, 'ImportConFile', text="File")
-        # col.prop(settings, 'ImportConFile', text="Mod folder")
-        # col.prop(settings, 'ImportConFile', text="Map folder")
-        # col.operator("bf1942.addstaticobject", text="Load static object list")
-        col.operator("bf1942.importstaticobjects", text="Import")
-        # col.operator("bf1942.addstaticobject", text="Add static object")
-        # col.operator("bf1942.exportstaticobjects", text="Export")
+        col.prop(settings, 'ImportConDir', text="Base Folder")
+        if BF1942Settings.SelectedLevel != "":
+            col.operator("bf1942.selectlevel", text="Selected Level: "+BF1942Settings.SelectedLevel)
+        else:
+            col.operator("bf1942.selectlevel", text="Select Level (can be empty)")
+        col.operator("bf1942.readconfiles", text="Load Files")
+        if BF1942Settings.AllBF42Data != "80034e2e":
+            col.operator("bf1942.importlevelmeshes", text="Import (Tree)Meshes")
+            col.operator("bf1942.importstaticobjects", text="Import Static Objects")
+            
+            col.operator("bf1942.addstaticobject", text="Add new static object")
+            
+            box = col.box()
+            box.prop(settings, 'ExportConStaticFileBool', text='use custom export File')
+            if BF1942Settings.ExportConStaticFileBool:
+                box.prop(settings, 'ExportConStaticFile', text='StaticObjects Export File')
+            box.operator("bf1942.exportstaticobjects", text="Export static objects")
+            
+            box = col.box()
+            box.prop(settings, 'ExportLightMapDirBool', text='use custom export Folder')
+            if BF1942Settings.ExportLightMapDirBool:
+                box.prop(settings, 'LightMapDir', text='LightMap Export Folder')
+            box.operator("bf1942.exportlightmaps", text="Export LightMaps")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -728,6 +963,18 @@ class BF1942_sm_Properties(PropertyGroup):
     )
 
 
+
+def bf42_loadLevelList(self,context):
+    BF1942Settings = bpy.context.scene.BF1942Settings
+    base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+    LevelList = []
+    levelsDir = os.path.join(base_path,"bf1942/levels")
+    if os.path.isdir(levelsDir):
+        for dir_name in os.listdir(levelsDir):
+            if os.path.isdir(os.path.join(levelsDir,dir_name)):
+                LevelList.append(dir_name)
+    BF1942Settings.LevelList = dumps(LevelList)
+    
 class BF1942Settings(PropertyGroup):
 
     ################# world settings ###################
@@ -735,7 +982,7 @@ class BF1942Settings(PropertyGroup):
     sceneScale : FloatProperty(
         name = "Scene Scale",
         description = "The scale factor of the Blender scene",
-        default = 0.01,
+        default = 0.1,
         min = 0
         )
     
@@ -957,15 +1204,32 @@ class BF1942Settings(PropertyGroup):
 
     ExportTMApplyTransformation : BoolProperty(name = "ExportTMApplyTransformation", description = "ExportTMApplyTransformation", default = True)
     
-    ################# StaticObjects.con settings ###################
+    ################# Script/Level import settings ###################
     
-    ImportConFile : StringProperty(
-        name = "ImportConFile",
-        description = "Import StaticObjects.con",
-        default = "",
-        subtype="FILE_PATH"
-        )
-    ObjectTemplateList = ['test','test1','test2']
+    ImportConDir : StringProperty(name = "ImportConDir", description = "Base directory for extracted bf1942", default = "", subtype="DIR_PATH", update=bf42_loadLevelList)
+    
+    # staticObjects export settings:
+    ExportConStaticFileBool : BoolProperty(name = "ExportConStaticFileBool", description = "ExportConStaticFileBool", default = False)
+    ExportConStaticFile : StringProperty(name = "ExportConStaticFile", description = "Custom file for export of static objects", default = "", subtype="FILE_PATH")
+    
+    # LightMaps export settings:
+    LightMapDir : StringProperty(name = "LightMapDir", description = "LightMap Directory", default = "", subtype="DIR_PATH")
+    ExportLightMapDirBool : BoolProperty(name = "ExportLightMapDirBool", description = "ExportConStaticFileBool", default = False)
+    
+    AllBF42Data : StringProperty(default = "80034e2e") #None, pickle and hex encoded
+    LevelList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
+    SelectedLevel : StringProperty(default = "")
+    ObjectTemplateList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
+    SelectedObject : PointerProperty(type=bpy.types.Object)
+    
+    
+    
+    #################  ###################
+    
+    
+    
+    
+
     
 
 

@@ -3,9 +3,14 @@ A Battlefield 1942 import/export add-on for Blender.\
 The add-on is still in a very early stage.
 ## Features:
 - Heightmap.raw import/export
-- Standard Mesh (.sm and .rs) import/export
-- Tree Mesh (.tm) import/export
-- staticObject.con import/export
+- StandardMesh (.sm & .rs) import/export
+- TreeMesh (.tm) import/export
+- Level Editing
+	- Auto read (extracted) game files
+	- Import static objects
+	- Place new static objects
+	- Export static objects
+	- Export light maps
 ## Usage:
 - download the add-on zip: https://github.com/Ahrkylien/BF1942-Blender-add-on/archive/refs/heads/main.zip
 - open Blender
@@ -14,33 +19,36 @@ The add-on is still in a very early stage.
 - now the Add-on is added. You only need to enable it by clicking the checkbox
 - in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
 ## ToDo:
-- heightmap import/export:
-	- add multires support: https://bfmods.com/viewtopic.php?f=6&t=2275&p=15648
+- all imports:
+	check if collection (where the new object is placed) is visable
+	fix "not responding" for long imports. maybe:
+	```
+	bpy.ops.wm.redraw_timer(type='DRAW_WIN', iterations=1)
+	```
 - .sm import:
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
 	- research matterial settings inside .sm (LOD)
 	- let LODs share the same Material
-	- let materials share the same textures
 - .sm export:
 	- LOD generation
 	- create dummy Visible mesh if none supplied
-	- Separate Face by Angle
+	- separate Face by Angle
 		``
 		The LOD mesh separates faces whose face-to-face angle is greater than the smoothing angle.
 		By separating it, the boundary between faces will appear angular in the game.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
-	- Add matterials of non-mainLods to rs if not there already
-- staticObject.con import
-	- create list of possible ObjectTemplates/Meshes based Template structure readout or .lst readout
-	- support Collections (bundles)
-- staticObject.con export
-	- support Collections (bundles)
-	- support linked translation (translation of parent object)
-- create UI for manullay adding staticObject to scene from list:
-	- https://blender.stackexchange.com/questions/44886/search-enum-list
-- add minimap render
+-	.tm export:
+	- order sprites per angle on distance
+- Level Editing:
+	- use texture directories
+	- add heightmap import/export
+	- add minimap render
+	- add geometry.scale to object import/export
+	- add geometry.color to object import/export ?for treeMeshes?
+	- add filters for dropdown-list when adding new static objects
+	- add more settings to lightmap export
 	```
 	bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
 	camera = bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 1000*0.01), rotation=(0, 0, 0))
@@ -50,7 +58,6 @@ The add-on is still in a very early stage.
 	bpy.context.object.data.shift_y = 0.5
 	bpy.context.object.data.clip_end = 1000
 	```
-- add Lightmap export for maps
 - fill in: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki
   and add it to bl_info = {}
 	- MaterialID list

@@ -1,19 +1,9 @@
 import bpy
 import os
+from math import pi
 
+from .bf42_script import bf42_vec3
 
-def removesuffix(string, suffix):
-    if suffix and string.endswith(suffix):
-        return string[:-len(suffix)]
-    else:
-        return string[:]
-def revomeBlenderSuffix(name):
-    nameL = name.rsplit('.', 1)
-    if len(nameL) == 2:
-        if nameL[1].isnumeric():
-            name = nameL[0]
-    return(name)
-        
 popupMessages = []
 def draw_popupMessage(self, context):
     for popupMessage in popupMessages:
@@ -23,12 +13,54 @@ def popupMessage(titleText,popupMessages_loc):
     if not popupMessages_loc == []:
         popupMessages = popupMessages_loc
         bpy.context.window_manager.popup_menu(draw_popupMessage, title=titleText, icon='INFO')
+
 def bf42_isFloat(val):
     try: 
         float(val)
         return True
     except ValueError:
         return False
+
+def removesuffix(string, suffixes):
+    if isinstance(suffixes, str):
+        suffixes = [suffixes]
+    for suffix in suffixes:
+        if suffix and string.endswith(suffix):
+            return string[:-len(suffix)]
+    return string[:]
+def revomeBlenderSuffix(name):
+    nameL = name.rsplit('.', 1)
+    if len(nameL) == 2:
+        if nameL[1].isnumeric():
+            name = nameL[0]
+    return(name)
+
+def bf42_get_object(collection, name):
+    object = collection.objects.get(name)
+    if object != None:
+        return(object)
+    for object in collection.objects:
+        if revomeBlenderSuffix(object.name) == name:
+            return(object)
+    return(None)
+
+def bf42_getCollectionByName(name,parentCollection = None):
+    if parentCollection == None:
+        if name == 'bf42_environment':
+            parentCollection = bpy.context.scene.collection
+        else:
+            parentCollection = bf42_getCollectionByName('bf42_environment')
+    collection = parentCollection.children.get(name)
+    if collection == None:
+        for collection_child in parentCollection.children:
+            if revomeBlenderSuffix(collection_child.name) == name:
+                collection = collection_child
+                break
+    if collection == None:
+        collection = bpy.data.collections.new(name)
+        parentCollection.children.link(collection)
+    return(collection)
+
 def bf42_getTexturePathByName(textureName):
     BF1942Settings = bpy.context.scene.BF1942Settings
     defaultTexPath = BF1942Settings.TextureDirectory
@@ -39,63 +71,23 @@ def bf42_getTexturePathByName(textureName):
     if os.path.isfile(FILE_PATH_tga):
         return(FILE_PATH_tga)
     return(False)
+    
+def bf42_getPosition(object, sceneScale = 1):
+    p = object.location
+    return(bf42_vec3((p.x/sceneScale,p.z/sceneScale,p.y/sceneScale)))
 
+def bf42_getRotation(object):
+    if 'Z' in object.rotation_mode:
+        q = object.rotation_euler.to_quaternion()
+    else:
+        q = object.rotation_quaternion
+    r = q.to_euler("YXZ")
+    return(bf42_vec3((-r.z/pi*180,-r.x/pi*180,-r.y/pi*180)))
 
-
-
-def bf42_getCollection():
-    try:
-        bf42_collection = bpy.data.collections['bf42_environment']
-    except:
-        bf42_collection = bpy.data.collections.new('bf42_environment')
-        bpy.context.scene.collection.children.link(bf42_collection)
-    return(bf42_collection)
-
-def bf42_getStaticObjectsCollection():
-    bf42_collection = bf42_getCollection()
-    try:
-        bf42_static_collection = bpy.data.collections['bf42_static_objects']
-    except:
-        bf42_static_collection = bpy.data.collections.new('bf42_static_objects')
-        bf42_collection.children.link(bf42_static_collection)
-    return(bf42_static_collection)
-
-def bf42_getObjectsCollection():
-    bf42_collection = bf42_getCollection()
-    try:
-        bf42_object_collection = bpy.data.collections['bf42_meshes']
-    except:
-        bf42_object_collection = bpy.data.collections.new('bf42_meshes')
-        bf42_collection.children.link(bf42_object_collection)
-    return(bf42_object_collection)
-
-def bf42_createObject(vertices,faces, name="no name", edges=[]):
-    terrain_mesh = bpy.data.meshes.new(name)
-    terrain_mesh.from_pydata(vertices, edges, faces)
-    terrain_mesh.update()
-    terrain_object = bpy.data.objects.new(name,terrain_mesh)
-    bf42_addObject(terrain_object)
-    return(terrain_object)
-
-def bf42_addObject(object):
-    bf42_object_collection = bf42_getObjectsCollection()
-    bf42_object_collection.objects.link(object)
-
-def bf42_addSpecialObject(object):
-    bf42_collection = bf42_getCollection()
-    bf42_collection.objects.link(object)
-
-def bf42_addStaticObject(object):
-    bf42_static_collection = bf42_getStaticObjectsCollection()
-    bf42_static_collection.objects.link(object)
-
-def bf42_duplicateSpecialObject(object,newName='tmp'):
-    newObject = object.copy()
-    newObject.data = object.data.copy()
-    newObject.animation_data_clear()
-    newObject.name=newName
-    bf42_addSpecialObject(newObject)
-    return(newObject)
+def bf42_applyRotation(object, bf42_rotation):
+    r=bf42_rotation
+    object.rotation_euler = (-r.y*pi/180, -r.z*pi/180, -r.x*pi/180)
+    object.rotation_mode = "YXZ"
 
 def bf42_applyTransformObject(object):
     object.data.transform(object.matrix_world)
@@ -110,3 +102,88 @@ def bf42_triangulateObject(object):
     else:
         bpy.ops.object.modifier_apply(apply_as='DATA', modifier="tmp")
     bpy.context.view_layer.objects.active = old_active
+
+def bf42_toggle_hide_layer_collection(name="", exclude=True):
+    for layer_collection in bpy.context.view_layer.layer_collection.children:
+        if layer_collection.name == "bf42_environment":
+            for layer_collection in layer_collection.children:
+                if layer_collection.name == name:
+                    layer_collection.exclude = exclude
+                    break
+            break
+
+def bf42_hide_bf42_multi_mesh_objects(exclude=True):
+    bf42_toggle_hide_layer_collection("bf42_multi_mesh_objects", exclude)
+
+def bf42_toggle_hide_static_objects(exclude=True):
+    bf42_toggle_hide_layer_collection("bf42_static_objects", exclude)
+
+def bf42_createUnlinkedObject(vertices,faces, name="no name", edges=[]):
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(vertices, edges, faces)
+    mesh.update()
+    object = bpy.data.objects.new(name,mesh)
+    return(object)
+
+
+#Global:
+def bf42_getCollection():
+    return(bf42_getCollectionByName('bf42_environment'))
+
+def bf42_addSpecialObject(object):
+    bf42_getCollection().objects.link(object)
+
+def bf42_duplicateSpecialObject(object,newName=None):
+    newObject = object.copy()
+    newObject.data = object.data.copy()
+    newObject.animation_data_clear()
+    if newName != None:
+        newObject.name=newName
+    bf42_addSpecialObject(newObject)
+    return(newObject)
+
+
+#Mesh:
+def bf42_getMeshesCollection():
+    return(bf42_getCollectionByName('bf42_meshes'))
+    
+def bf42_createMesh(vertices,faces, fileName, meshName="no name", edges=[]): #change to bf42_createMesh
+    meshesCollection = bf42_getMeshesCollection()
+    meshCollection = bf42_getCollectionByName(fileName,meshesCollection)
+    object = bf42_createUnlinkedObject(vertices,faces, meshName, edges)
+    meshCollection.objects.link(object)
+    return(object)
+
+
+#TreeMesh:
+def bf42_getTreeMeshesCollection():
+    return(bf42_getCollectionByName('bf42_tree_meshes'))
+
+def bf42_createTreeMesh(vertices,faces, fileName, meshName="no name", edges=[]):
+    treesCollection = bf42_getTreeMeshesCollection()
+    treeCollection = bf42_getCollectionByName(fileName,treesCollection)
+    object = bf42_createUnlinkedObject(vertices,faces, meshName, edges)
+    treeCollection.objects.link(object)
+    return(object)
+
+
+#StaticObject:
+def bf42_getStaticObjectsCollection():
+    return(bf42_getCollectionByName('bf42_static_objects'))
+
+def bf42_addStaticObject(object):
+    bf42_getStaticObjectsCollection().objects.link(object)
+
+
+#MultieMeshObject:
+def bf42_getMultiMeshObjectsCollection():
+    return(bf42_getCollectionByName('bf42_multi_mesh_objects'))
+
+def bf42_addMultiMeshObject(collection, object, location = [0,0,0], rotation = [0,0,0]):
+    new_object = object.copy()
+    collection.objects.link(new_object)
+    new_object.location = location
+    new_object.rotation_euler = (-rotation[1]*pi/180, -rotation[2]*pi/180, -rotation[0]*pi/180)
+    new_object.rotation_mode = "YXZ"
+    return(collection)
+

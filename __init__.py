@@ -3,7 +3,7 @@ bl_info = {
     "name": "Battlefield 1942",
     "description": "This a start towards a complete Battlefield 1942 addon",
     "author": "Henk <Discord: Arkyliën#6833>",
-    "version": (3, 0),
+    "version": (4, 0),
     "blender": (2,  81, 0),
     "location": "View 3D > Properties Panel",
     "support": "COMMUNITY",
@@ -12,12 +12,8 @@ bl_info = {
     "category": "Import-Export",
     }
 
-
-
-
 import bpy
 from .src.utils import *
-
 
 classes = (
     BF1942Settings,
@@ -41,37 +37,31 @@ classes = (
     BF1942_PT_ImportTM,
     BF1942_PT_ExportTM,
     
+    BF1942_ReadConFiles,
+    BF1942_SelectLevel,
+    BF1942_ImportLevelMeshes,
     BF1942_ImportStaticObjects,
+    BF1942_AddStaticObject,
+    BF1942_AddStaticObjectModalTimerOperator,
     BF1942_ExportStaticObjects,
+    BF1942_ExportLightMaps,
     BF1942_PT_ImportCon,
     
     BF1942_PT_material,
     
     BF1942AddonPreferences,
-    
-    BF1942_AddStaticObject,
-    
     )
-
 
 register, unregister = bpy.utils.register_classes_factory(classes)
 
-# Register
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.BF1942Settings = PointerProperty(type=BF1942Settings)
     bpy.types.Material.BF1942_sm_Properties = PointerProperty(type=BF1942_sm_Properties)
 
-
-# Unregister
 def unregister():
     for cls in classes:
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.BF1942Settings
     del bpy.types.Material.BF1942_sm_Properties
-
-
-if __name__ == "__main__":
-    # unregister()
-    register()

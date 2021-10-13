@@ -317,7 +317,7 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
     links = mat.node_tree.links
     FILE_PATH = bf42_getTexturePathByName(rs_matterial.texture)
     if FILE_PATH != False:
-        image = bpy.data.images.load(FILE_PATH, check_existing=False)
+        image = bpy.data.images.load(FILE_PATH, check_existing=True)
         node_texture.image = image
         new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
     else:
@@ -579,11 +579,25 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
     if applyTrans:
         bf42_applyTransformObject(object)
     object.data.transform(Matrix.Scale(1/sceneScale, 4))
-    bf42_triangulateObject(object)
     mesh = object.data
     
     RS_materials = []
     
+    light_uv_layer = None
+    for uv_layer in mesh.uv_layers:
+        if uv_layer.name == "lightMap":
+            light_uv_layer = uv_layer
+    if light_uv_layer == None and addLightMapUV: # generate lightMapUV
+        light_uv_layer = mesh.uv_layers.new(name='lightMap')
+        light_uv_layer.active = True
+        bpy.ops.object.select_all(action='DESELECT')
+        object.select_set(True)
+        bpy.ops.uv.lightmap_pack(PREF_CONTEXT='ALL_FACES', PREF_PACK_IN_ONE=True, PREF_NEW_UVLAYER=False, PREF_APPLY_IMAGE=False, PREF_IMG_PX_SIZE=128, PREF_BOX_DIV=12, PREF_MARGIN_DIV=1) 
+    
+    bf42_triangulateObject(object)
+    
+    # with bf42_triangulateObject a new data reference is created... (so here I re-reference) 
+    mesh = object.data
     texutre_uv_layer = None
     light_uv_layer = None
     for uv_layer in mesh.uv_layers:
@@ -593,12 +607,6 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
             texutre_uv_layer = uv_layer
         if uv_layer.name == "lightMap":
             light_uv_layer = uv_layer
-    if light_uv_layer == None and addLightMapUV: # generate lightMapUV
-        light_uv_layer = mesh.uv_layers.new(name='lightMap')
-        light_uv_layer.active = True
-        bpy.ops.object.select_all(action='DESELECT')
-        object.select_set(True)
-        bpy.ops.uv.lightmap_pack(PREF_CONTEXT='ALL_FACES', PREF_PACK_IN_ONE=True, PREF_NEW_UVLAYER=False, PREF_APPLY_IMAGE=False, PREF_IMG_PX_SIZE=128, PREF_BOX_DIV=12, PREF_MARGIN_DIV=0.5) 
     
     startOfSection = f.tell()
     sm_i_w(f, 0) #numMaterials
@@ -778,13 +786,13 @@ def bf42_import_sm_debug(path):
             print("Error, Data left at end: "+str(f.tell())+" -> "+str(fileSize)+" : "+str(fileSize-f.tell()))
         f.close()
 
-def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale):
-    path = bpy.path.abspath(path)
-    basename = bpy.path.basename(path).split('.',1)[0]
-    fileName = basename.split('.',1)[0]
-    directory = os.path.dirname(path)
-    path_rs = os.path.join(directory,fileName+".rs")
-    path_sm = os.path.join(directory,fileName+".sm")
+def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, sceneScale, name = None):
+    if name == None:
+        fileName = os.path.splitext(bpy.path.basename(path))[0]
+    else:
+        fileName = name
+    path_rs = os.path.splitext(path)[0]+".rs"
+    path_sm = os.path.splitext(path)[0]+".sm"
 
     print(fileName)
 
@@ -808,7 +816,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
             edges = [(0,1),(1,2),(2,3),(3,0),
                     (4,5),(5,6),(6,7),(7,4),
                     (0,4),(1,5),(2,6),(3,7),]
-            BoundingBox_object = bf42_createObject(vertices,[], fileName+'_BoundingBox',edges = edges)
+            BoundingBox_object = bf42_createMesh(vertices,[], fileName, fileName+'_BoundingBox',edges = edges)
             BoundingBox_object.scale = (sceneScale,sceneScale,sceneScale)
         numCollisionMeshes = sm_i(f)
 #        print('COLLISION_COUNT: {}'.format(numTopModels))
@@ -825,7 +833,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                     vertices.append((vertex.vertex[0],vertex.vertex[2],vertex.vertex[1]))
                 for face in collisionMesh.faces:
                     faces.append(face.vertices)
-                object = bf42_createObject(vertices,faces, fileName+'_COL'+str(collisionMeshNumber+1))
+                object = bf42_createMesh(vertices,faces, fileName, fileName+'_COL'+str(collisionMeshNumber+1))
                 mesh = object.data
                 materialIDs = []
                 for i, polygon in enumerate(mesh.polygons):
@@ -860,7 +868,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 if rs_matterial == False:
                     rs_matterial = bf42_material(material.name)
                 # ToDo: add vertexNormals
-                object = bf42_createObject(material.vertexValues,material.faces, fileName+'_LOD'+str(LodNumber+1)+'_Material'+str(materialNumber))
+                object = bf42_createMesh(material.vertexValues,material.faces, fileName, fileName+'_LOD'+str(LodNumber+1)+'_Material'+str(materialNumber))
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 mesh = object.data
                 texutre_uv_layer = mesh.uv_layers.new(name='textureMap')
@@ -896,7 +904,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                         print('SHADOW_LOD_{}'.format(ShadowLodNumber))
                         LOD_mesh = sm_LOD_mesh().read(f)
                         for materialNumber, material in enumerate(LOD_mesh.materials):
-                            object = bf42_createObject(material.vertexValues,material.faces, fileName+'_ShadowLOD')
+                            object = bf42_createMesh(material.vertexValues,material.faces, fileName, fileName+'_ShadowLOD')
                             object.scale = (sceneScale,sceneScale,sceneScale)
                         bpy.context.view_layer.objects.active = object
                         if merge_shared_verticies:
