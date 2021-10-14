@@ -2,7 +2,7 @@
 A Battlefield 1942 import/export add-on for Blender.\
 The add-on is still in a very early stage.
 ## Features:
-- Heightmap.raw import/export
+- Heightmap (.raw) import/export
 - StandardMesh (.sm & .rs) import/export
 - TreeMesh (.tm) import/export
 - Level Editing
@@ -17,7 +17,8 @@ The add-on is still in a very early stage.
 - in Blender go to: Edit -> Preferences -> Add-ons -> Install....
 - select the zip you just downloaded
 - now the Add-on is added. You only need to enable it by clicking the checkbox
-- in Object-Mode on the right pannel (press 'n') you will find the BF1942 menu
+- in Object-Mode on the right panel (press 'n') you will find the BF1942 menu
+- for further usage read: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki/Usage
 ## ToDo:
 - all imports:
 	check if collection (where the new object is placed) is visable
