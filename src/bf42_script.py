@@ -193,7 +193,7 @@ class BF42_script:
     def read(self, path, data, staticObjects = False):
         directory = os.path.dirname(path)
         try:
-            with open(path, 'r') as fp:
+            with open(path, 'r', errors='replace') as fp:
 #                print(path)
                 for line_raw in fp.readlines():
                     line = line_raw.lower().strip()

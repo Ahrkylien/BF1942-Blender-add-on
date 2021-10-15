@@ -50,6 +50,7 @@ The add-on is still in a very early stage.
 	- add geometry.color to object import/export ?for treeMeshes?
 	- add filters for dropdown-list when adding new static objects
 	- add more settings to lightmap export
+	- Far LOD lightmap export
 	```
 	bpy.context.scene.render.resolution_x = bpy.context.scene.render.resolution_y
 	camera = bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 1000*0.01), rotation=(0, 0, 0))
@@ -59,6 +60,7 @@ The add-on is still in a very early stage.
 	bpy.context.object.data.shift_y = 0.5
 	bpy.context.object.data.clip_end = 1000
 	```
+- Area object import/export
 - fill in: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki
   and add it to bl_info = {}
 	- MaterialID list
