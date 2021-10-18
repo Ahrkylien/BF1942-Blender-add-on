@@ -1,5 +1,6 @@
 import os
 import bpy
+from math import sin, cos, pi
 
 from .standard_mesh import *
 
@@ -162,6 +163,31 @@ class tm_sprites_material_mesh:
         for spriteObject in spriteObjects:
             self.sprites.append(tm_sprite().loadObject(spriteObject))
         return(self)
+    def getOrderByAngle(self,angle,angleCount):
+        order = []
+        angleRad = ((angle+0.5)/angleCount)*2*pi
+        print("### angle")
+        print(angleRad)
+        for i, sprite in enumerate(self.sprites):
+            centerCoordinate = sprite.centerCoordinate
+            print("### centerCoordinate")
+            print(centerCoordinate)
+            depth_i = centerCoordinate[0]*sin(angleRad) + centerCoordinate[2]*cos(angleRad)
+            print("### depth_i")
+            print(depth_i)
+            j = len(order)
+            for k_j, k in enumerate(order):
+                depth_j = self.sprites[k].centerCoordinate[0]*sin(angleRad) + self.sprites[k].centerCoordinate[2]*cos(angleRad)
+                print("### depth_j")
+                print(depth_j)
+                if depth_j < depth_i:
+                    j = k_j
+                    break
+            order.insert(j,i)
+        print("### order")
+        print(order)
+        order.reverse()
+        return(order)
 class tm_sprite:
     def __init__(self):
         self.centerCoordinate = [0,0,0]
@@ -495,11 +521,8 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
                 bf42_triangulateObject(object)
                 sprites = tm_sprites().loadObject(object)
                 for i, material_mesh in enumerate(sprites.materialMeshes):
-                    faces.append([])
                     textureNames.append(material_mesh.texturename)
                     for sprite in material_mesh.sprites:
-                        for face in sprite.faces:
-                            faces[i].append([v+len(vertices) for v in face])
                         for v,vertexCoordinateOffset in enumerate(sprite.vertexCoordinateOffsets):
                             vertices.append(sprite.centerCoordinate)
                             vertexNormals.append((0,0,0))
@@ -508,7 +531,21 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
                             for k in range(3):
                                 spriteBoundingBox[k] = min(spriteBoundingBox[k],sprite.centerCoordinate[k]-max(abs(vertexCoordinateOffset[0]),abs(vertexCoordinateOffset[1])))
                                 spriteBoundingBox[k+3] = max(spriteBoundingBox[k+3],sprite.centerCoordinate[k]+max(abs(vertexCoordinateOffset[0]),abs(vertexCoordinateOffset[1])))
-                
+                numVertsAllMat = 0
+                for i, material_mesh in enumerate(sprites.materialMeshes):
+                    faces.append([])
+                    for k in range(AngleCount):
+                        spriteOrder = material_mesh.getOrderByAngle(k,AngleCount)
+                        for sprite_i in spriteOrder:
+                            numVerts = numVertsAllMat
+                            for prev_sprite_i in range(sprite_i):
+                                numVerts += len(material_mesh.sprites[prev_sprite_i].vertexCoordinateOffsets)
+                            for face in material_mesh.sprites[sprite_i].faces:
+                                faces[i].append([v+numVerts for v in face])
+                    numVerts = 0
+                    for sprite in material_mesh.sprites:
+                        numVerts += len(sprite.vertexCoordinateOffsets)
+                    numVertsAllMat += numVerts
                 bpy.data.objects.remove(object)
                 
                 # spriteBoundingBox = getUnionBoundingBox([getBoundingBox(object.data)], spriteBoundingBox)
@@ -552,10 +589,11 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
                 sm_i_w(f, len(GeomFaceGroups))
                 totalNumVertices += len(allVertices[i])
                 for j, faceGroup in enumerate(GeomFaceGroups):
-                    numFaces = len(faceGroup)
+                    numFaces = int(len(faceGroup)/(AngleCount if i in [2] else 1))
+                    # will be: numFaces = int(len(faceGroup)/(AngleCount if i in [0, 2] else 1))
                     sm_i_w(f, totalNumFaces*3)
                     sm_i_w(f, numFaces)
-                    totalNumFaces += numFaces*(AngleCount if i in [0,2] else 1)
+                    totalNumFaces += numFaces*(AngleCount if i in [0, 2] else 1)
                     textureName = allTextureNames[i][j]
                     sm_i_w(f, len(textureName))
                     sm_s_w(f, textureName)
@@ -581,7 +619,7 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
             totalNumVertices = 0
             for i, GeomFaceGroups in enumerate(allFaces):
                 for j, faceGroup in enumerate(GeomFaceGroups):
-                    for k in range(AngleCount if i in [0,2] else 1):
+                    for k in range(AngleCount if i in [0] else 1):
                         for face in faceGroup:
                             face_with_offset = [v+totalNumVertices for v in face]
                             sm_i_short_w(f, face_with_offset)

@@ -41,7 +41,9 @@ The add-on is still in a very early stage.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
 -	.tm export:
-	- order sprites per angle on distance
+	- order branches per angle on distance
+	- the normal of the sprites doesnt matter but the export flips something randomly. This causes the Import of the flipped export the flip the normals (in bf42 the normals are not fliped).
+	When exporting these imported fliped normals they dont show up in bf42 (the sprites)..
 - Level Editing:
 	- use texture directories
 	- add heightmap import/export

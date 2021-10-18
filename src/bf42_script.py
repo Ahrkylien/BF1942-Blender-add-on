@@ -107,10 +107,12 @@ class BF42_data:
         
     def creatLinks(self):
         for object in self.objects:
-            object.template_link = self.getObjectTemplate(object.template)
+            if object.template_link == None:
+                object.template_link = self.getObjectTemplate(object.template)
         for objectTemplate in self.objectTemplates:
             for child in objectTemplate.childeren:
-                child.template_link = self.getObjectTemplate(child.template)
+                if child.template_link == None:
+                    child.template_link = self.getObjectTemplate(child.template)
             objectTemplate.geometry_link = self.getGeometryTemplate(objectTemplate.geometry)
         return(None)
 
