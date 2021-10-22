@@ -319,16 +319,16 @@ class BF1942_ImportLevelMeshes(Operator):
         wm = bpy.context.window_manager
         wm.progress_begin(0, len(StandardMeshes)+len(TreeMeshes)+len(StandardMeshesLevel)+len(TreeMeshesLevel))
         for i, StandardMesh in enumerate(StandardMeshes):
-            bf42_import_sm(os.path.join(directory1, StandardMesh), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMesh)[0])
+            bf42_import_sm(os.path.join(directory1, StandardMesh), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMesh)[0].replace("/", "\\"))
             wm.progress_update(i)
         for i, TreeMesh in enumerate(TreeMeshes):
-            bf42_import_tm(os.path.join(directory2, TreeMesh), False, False, False, True, True, sceneScale, os.path.splitext(TreeMesh)[0])
+            bf42_import_tm(os.path.join(directory2, TreeMesh), False, False, False, True, True, sceneScale, os.path.splitext(TreeMesh)[0].replace("/", "\\"))
             wm.progress_update(i)
         for i, StandardMeshLevel in enumerate(StandardMeshesLevel):
-            bf42_import_sm(os.path.join(directory3, StandardMeshLevel), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMeshLevel)[0])
+            bf42_import_sm(os.path.join(directory3, StandardMeshLevel), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMeshLevel)[0].replace("/", "\\"))
             wm.progress_update(i)
         for i, TreeMeshLevel in enumerate(TreeMeshesLevel):
-            bf42_import_tm(os.path.join(directory4, TreeMeshLevel), False, False, False, True, True, sceneScale, os.path.splitext(TreeMeshLevel)[0])
+            bf42_import_tm(os.path.join(directory4, TreeMeshLevel), False, False, False, True, True, sceneScale, os.path.splitext(TreeMeshLevel)[0].replace("/", "\\"))
             wm.progress_update(i)
         wm.progress_end()
         return {'FINISHED'}
@@ -413,7 +413,6 @@ class BF1942_AddStaticObjectModalTimerOperator(bpy.types.Operator):
                     result, location, normal, index = terrain_object.ray_cast([origin[i]/scale[i] for i in range(3)],direction)
                     if result:
                         loc = [location[i]*scale[i] for i in range(3)]
-                        print(location)
                 loc = [max(loc[i],0) for i in range(3)]
                 SelectedObject = bpy.context.scene.BF1942Settings.SelectedObject
                 if SelectedObject != None:
@@ -589,7 +588,7 @@ class BF1942_PT_ExportHeightmap(Panel):
         
         col = layout.column(align=True)
         col.prop(settings, 'ExportHeightmapFile', text='Folder')
-        col.prop(settings, 'HeightmapObject', text='Terrain object')
+        col.prop(settings, 'HeightmapObject', text='Terrain')
         col.prop(settings, 'AddHeightmapAfterExport')
         row = layout.row(align=True)
         row.operator("bf1942.exportheightmap", text="Export")

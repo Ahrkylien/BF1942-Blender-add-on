@@ -80,7 +80,7 @@ class bf42_heightmap:
             terrain_uv_layer = terrain_mesh.uv_layers.new(name='uvMap')
             for loop in terrain_object.data.loops:
                 vertex = terrain_object.data.vertices[loop.vertex_index]
-                terrain_uv_layer.data[loop.index].uv = (2*vertex.co[0]/self.worldSize-.5,2*vertex.co[1]/self.worldSize-.5)
+                terrain_uv_layer.data[loop.index].uv = (vertex.co[0]/self.worldSize,vertex.co[1]/self.worldSize)
             bf42_addSpecialObject(terrain_object)
             terrain_object.scale = (self.SceneScale, self.SceneScale, self.SceneScale)
     
