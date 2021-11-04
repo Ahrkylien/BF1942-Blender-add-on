@@ -53,7 +53,7 @@ def bf42_get_object(collection, name):
             return(object)
     return(None)
 
-def bf42_getCollectionByName(name,parentCollection = None):
+def bf42_getCollectionByName(name,parentCollection = None, onlyCheckIfExists = False):
     if parentCollection == None:
         if name == 'bf42_environment':
             parentCollection = bpy.context.scene.collection
@@ -65,7 +65,7 @@ def bf42_getCollectionByName(name,parentCollection = None):
             if revomeBlenderSuffix(collection_child.name) == name:
                 collection = collection_child
                 break
-    if collection == None:
+    if collection == None and not onlyCheckIfExists:
         collection = bpy.data.collections.new(name)
         parentCollection.children.link(collection)
     return(collection)
@@ -100,17 +100,17 @@ def bf42_getMeshPath(geometryTemplate):
         elif geometryTemplate.type == "treemesh":
             folderName = "treeMesh"
             ext = ".tm"
+        directory = os.path.join(base_path,folderName)
+        mesh_path = os.path.join(directory,geometryTemplate.file+ext)
+        if os.path.isfile(mesh_path):
+            rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
+            return((mesh_path,rel_path))
         if level != "":
             directory = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\"+folderName)
             mesh_path = os.path.join(directory,geometryTemplate.file+ext)
             if os.path.isfile(mesh_path):
                 rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
                 return((mesh_path,rel_path))
-        directory = os.path.join(base_path,folderName)
-        mesh_path = os.path.join(directory,geometryTemplate.file+ext)
-        if os.path.isfile(mesh_path):
-            rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
-            return((mesh_path,rel_path))
     return((None,None))
     
 def bf42_getPosition(object, sceneScale = 1):
@@ -184,32 +184,40 @@ def bf42_duplicateSpecialObject(object, newName=None):
     return(newObject)
 
 
-#Mesh:
+#StandardMesh:
 def bf42_getMeshesCollection():
-    return(bf42_getCollectionByName('bf42_meshes'))
+    return(bf42_getCollectionByName('StandardMesh'))
     
-def bf42_createMesh(vertices, faces, fileName, meshName="no name", edges=[]): #change to bf42_createMesh
-    meshesCollection = bf42_getMeshesCollection()
-    meshCollection = bf42_getCollectionByName(fileName,meshesCollection)
-    object = bf42_createUnlinkedObject(vertices,faces, meshName, edges)
+def bf42_createMesh(vertices, faces, fileName, suffix, edges=[]):
+    meshPath = fileName.split("/")
+    fileName = meshPath.pop()
+    meshCollection = bf42_getMeshesCollection()
+    for dir in meshPath:
+        meshCollection = bf42_getCollectionByName(dir,meshCollection)
+    meshCollection = bf42_getCollectionByName(fileName,meshCollection)
+    object = bf42_createUnlinkedObject(vertices, faces, fileName+suffix, edges)
     meshCollection.objects.link(object)
     return(object)
 
 
 #TreeMesh:
 def bf42_getTreeMeshesCollection():
-    return(bf42_getCollectionByName('bf42_tree_meshes'))
+    return(bf42_getCollectionByName('TreeMesh'))
 
-def bf42_createTreeMesh(vertices, faces, fileName, meshName="no name", edges=[]):
-    treesCollection = bf42_getTreeMeshesCollection()
-    treeCollection = bf42_getCollectionByName(fileName,treesCollection)
-    object = bf42_createUnlinkedObject(vertices, faces, meshName, edges)
+def bf42_createTreeMesh(vertices, faces, fileName, suffix, edges=[]):
+    meshPath = fileName.split("/")
+    fileName = meshPath.pop()
+    treeCollection = bf42_getTreeMeshesCollection()
+    for dir in meshPath:
+        treeCollection = bf42_getCollectionByName(dir,treeCollection)
+    treeCollection = bf42_getCollectionByName(fileName,treeCollection)
+    object = bf42_createUnlinkedObject(vertices, faces, fileName+suffix, edges)
     treeCollection.objects.link(object)
     return(object)
 
 #AreaObject:
 def bf42_getAreaObjectsCollection():
-    return(bf42_getCollectionByName('bf42_area_objects'))
+    return(bf42_getCollectionByName('Area Objects'))
 
 def bf42_createAreaObject(vertices, edges, meshName="no name"):
     collection = bf42_getAreaObjectsCollection()
@@ -220,7 +228,7 @@ def bf42_createAreaObject(vertices, edges, meshName="no name"):
 
 #StaticObject:
 def bf42_getStaticObjectsCollection():
-    return(bf42_getCollectionByName('bf42_static_objects'))
+    return(bf42_getCollectionByName('Static Objects'))
 
 def bf42_addStaticObject(object):
     bf42_getStaticObjectsCollection().objects.link(object)
@@ -228,7 +236,7 @@ def bf42_addStaticObject(object):
 
 #MultieMeshObject:
 def bf42_getMultiMeshObjectsCollection():
-    return(bf42_getCollectionByName('bf42_multi_mesh_objects'))
+    return(bf42_getCollectionByName('Multi Mesh Objects'))
 
 def bf42_addMultiMeshObject(collection, object, location = [0,0,0], rotation = [0,0,0]):
     new_object = object.copy()

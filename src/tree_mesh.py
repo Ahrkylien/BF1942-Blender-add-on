@@ -241,9 +241,11 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
         print("################### IMPORT ####################")
         bpy.ops.object.select_all(action='DESELECT')
         if name == None:
-            fileName = os.path.splitext(bpy.path.basename(path))[0]
+            filePath = os.path.splitext(bpy.path.basename(path))[0]
         else:
-            fileName = name
+            filePath = name
+        fileName = filePath.split("/").pop()
+        
         f.seek(0,2)
         fileSize = f.tell()
         f.seek(0)
@@ -263,7 +265,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 edges = [(0,1),(1,2),(2,3),(3,0),
                         (4,5),(5,6),(6,7),(7,4),
                         (0,4),(1,5),(2,6),(3,7),]
-                BoundingBox_object = bf42_createTreeMesh(vertices,[], fileName, fileName+'_BoundingBox',edges = edges)
+                BoundingBox_object = bf42_createTreeMesh(vertices,[], filePath, '_BoundingBox',edges = edges)
                 BoundingBox_object.scale = (sceneScale,sceneScale,sceneScale)
             bboxSpriteLeaves = sm_f(f,6)
             if add_BoundingBoxLeaves:
@@ -273,7 +275,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 edges = [(0,1),(1,2),(2,3),(3,0),
                         (4,5),(5,6),(6,7),(7,4),
                         (0,4),(1,5),(2,6),(3,7),]
-                BoundingBox_object = bf42_createTreeMesh(vertices,[], fileName, fileName+'_BoundingBoxSpriteLeaves',edges = edges)
+                BoundingBox_object = bf42_createTreeMesh(vertices,[], filePath, '_BoundingBoxSpriteLeaves',edges = edges)
                 BoundingBox_object.scale = (sceneScale,sceneScale,sceneScale)
             
             #Header data of Visible geometry types
@@ -292,7 +294,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                     vertices.append((vertex.vertex[0],vertex.vertex[2],vertex.vertex[1]))
                 for face in collisionMesh.faces:
                     faces.append(face.vertices)
-                object = bf42_createTreeMesh(vertices,faces, fileName, fileName+'_COL')
+                object = bf42_createTreeMesh(vertices,faces, filePath, '_COL')
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 mesh = object.data
                 materialIDs = []
@@ -314,7 +316,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 # for k in range(angleCnt):
                 for k in range(1):
                     faceSection = mesh.faces[k*lenFaceSection:(k+1)*lenFaceSection]
-                    object = bf42_createTreeMesh(geometries.vertexValues,faceSection, fileName, fileName+'_Branch_'+str(j+1))
+                    object = bf42_createTreeMesh(geometries.vertexValues,faceSection, filePath, '_Branch_'+str(j+1))
                     object.scale = (sceneScale,sceneScale,sceneScale)
                     rs_matterial = bf42_material("")
                     texture_split = mesh.textureName.split('/',1)
@@ -342,7 +344,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
             
             trunks = geometries.geometries[1]
             for j, mesh in enumerate(trunks.meshes):
-                object = bf42_createTreeMesh(geometries.vertexValues,mesh.faces, fileName, fileName+'_Trunk_'+str(j+1))
+                object = bf42_createTreeMesh(geometries.vertexValues,mesh.faces, filePath, '_Trunk_'+str(j+1))
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 rs_matterial = bf42_material("")
                 texture_split = mesh.textureName.split('/',1)
@@ -397,7 +399,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                     
                     # faceSection = mesh.faces[k*lenFaceSection:(k+1)*lenFaceSection]
                     
-                    object = bf42_createTreeMesh(spriteVertices,faceSection, fileName, fileName+'_Sprite_'+str(j+1))
+                    object = bf42_createTreeMesh(spriteVertices,faceSection, filePath, '_Sprite_'+str(j+1))
                     object.scale = (sceneScale,sceneScale,sceneScale)
                     rs_matterial = bf42_material("")
                     texture_split = mesh.textureName.split('/',1)
@@ -425,7 +427,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 
             billboards = geometries.geometries[3]
             for j, mesh in enumerate(billboards.meshes):
-                object = bf42_createTreeMesh(geometries.vertexValues,mesh.faces, fileName, fileName+'_Billboard_'+str(j+1))
+                object = bf42_createTreeMesh(geometries.vertexValues,mesh.faces, filePath, '_Billboard_'+str(j+1))
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 texutre_uv_layer = object.data.uv_layers.new(name='textureMap')
                 for loop in object.data.loops:

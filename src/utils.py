@@ -331,10 +331,8 @@ class BF1942_ImportLevelMeshes(Operator):
         
         wm = bpy.context.window_manager
         wm.progress_begin(0, len(geometryTemplates))
-        print("len(geometryTemplates)")
-        print(len(geometryTemplates))
         for i, geometryTemplate in enumerate(geometryTemplates):
-            bf42_importGeometry(geometryTemplate, base_path, level, data, sceneScale, True)
+            bf42_importGeometry(geometryTemplate, base_path, level, data, sceneScale)
             wm.progress_update(i)
         wm.progress_end()
         return {'FINISHED'}
@@ -353,12 +351,15 @@ class BF1942_ImportStaticObjects(Operator):
         level = BF1942Settings.SelectedLevel
         data = BF42_data().loads(BF1942Settings.AllBF42Data)
         
-        for object in data.staticObjects:
+        wm = bpy.context.window_manager
+        wm.progress_begin(0, len(data.staticObjects))
+        for i, object in enumerate(data.staticObjects):
             if bf42_is_linked(object.template):
                 bf42_placeObject(object.template, sceneScale, base_path, level, data, object.absolutePosition, object.rotation, loadFarLOD)
             else:
                 print("Error: "+object.template+" objectTemplate does not exist!!")
-            # popupMessage("warnings",["Some Objects not found, check console message"])
+            wm.progress_update(i)
+        wm.progress_end()
         bf42_hide_bf42_multi_mesh_objects()
         return {'FINISHED'}
 def ObjectTemplateListCallback(self, context):
@@ -765,8 +766,8 @@ class BF1942_PT_ImportCon(Panel):
         col.operator("bf1942.readconfiles", text="Load Files")
         if BF1942Settings.AllBF42Data != "80034e2e":
             col.operator("bf1942.importheightmaplevel", text="Import Heightmap")
-            col.prop(settings, 'PreLoadAllMeshes', text='PreLoad ALL Meshes')
-            col.operator("bf1942.importlevelmeshes", text="Import (Tree)Meshes")
+            # col.prop(settings, 'PreLoadAllMeshes', text='PreLoad ALL Meshes')
+            # col.operator("bf1942.importlevelmeshes", text="Import (Tree)Meshes")
             col.operator("bf1942.importstaticobjects", text="Import Static Objects")
             
             col.operator("bf1942.addstaticobject", text="Add new static object")

@@ -9,37 +9,32 @@ def bf42_getGeometryTemplateMeshes(geometryTemplate):
     if geometryTemplate.type in ["standardmesh", "animatedmesh", "treemesh"]:
         mesh_path, rel_path = bf42_getMeshPath(geometryTemplate)
         if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
-            selected_mesh_collection = bf42_getMeshesCollection()
+            meshCollection = bf42_getMeshesCollection()
         elif geometryTemplate.type == "treemesh":
-            selected_mesh_collection = bf42_getTreeMeshesCollection()
-        meshFound = False
-        for blend_collection in selected_mesh_collection.children:
-            if revomeBlenderSuffix(blend_collection.name) == rel_path:
-                for blend_object in blend_collection.objects:
-                    if removesuffix(revomeBlenderSuffix(blend_object.name),["_LOD1","_Branch","_Trunk","_Sprite","_Billboard"]).lower() == rel_path:
-                        objects.append(blend_object)
-                        meshFound = True
-                        if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
-                            break
-            if meshFound:
-                break
+            meshCollection = bf42_getTreeMeshesCollection()
+        
+        # find collection:
+        meshPath = rel_path.split("/")
+        fileName = meshPath.pop()
+        for dir in meshPath:
+            meshCollection = bf42_getCollectionByName(dir,meshCollection, False)
+            if meshCollection == None:
+                return([])
+        meshCollection = bf42_getCollectionByName(fileName,meshCollection, False)
+        if meshCollection == None:
+            return([])
+        
+        for blend_object in meshCollection.objects:
+            if removesuffix(revomeBlenderSuffix(blend_object.name),["_LOD1","_Branch","_Trunk","_Sprite","_Billboard"]).lower() == fileName.lower():
+                objects.append(blend_object)
+                if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
+                    break
     else:
         print("Error: Unknown mesh type: "+geometryTemplate.name+"!!")
     return(objects)
 
-def bf42_importGeometry(geometryTemplate, base_path, level, bf42_data, sceneScale = 1, overwrite = False):
+def bf42_importGeometry(geometryTemplate, base_path, level, bf42_data, sceneScale = 1):
     if geometryTemplate.type in ["standardmesh", "animatedmesh", "treemesh"]:
-        if overwrite:
-            if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
-                selected_mesh_collection = bf42_getMeshesCollection()
-            elif geometryTemplate.type == "treemesh":
-                selected_mesh_collection = bf42_getTreeMeshesCollection()
-            for blend_collection in selected_mesh_collection.children:
-                if blend_collection.name == geometryTemplate.name:
-                    for object in blend_collection.all_objects:
-                        bpy.data.objects.remove(object)
-                    bpy.data.collections.remove(blend_collection)
-                    break
         objects = bf42_getGeometryTemplateMeshes(geometryTemplate)
         if objects == []:
             print("Object Not Found. Going to Import")

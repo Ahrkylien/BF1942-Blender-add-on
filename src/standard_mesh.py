@@ -793,9 +793,11 @@ def bf42_import_sm_debug(path):
 
 def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, sceneScale, name = None):
     if name == None:
-        fileName = os.path.splitext(bpy.path.basename(path))[0]
+        filePath = os.path.splitext(bpy.path.basename(path))[0]
     else:
-        fileName = name
+        filePath = name
+    fileName = filePath.split("/").pop()
+    
     path_rs = os.path.splitext(path)[0]+".rs"
     path_sm = os.path.splitext(path)[0]+".sm"
 
@@ -819,7 +821,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
             edges = [(0,1),(1,2),(2,3),(3,0),
                     (4,5),(5,6),(6,7),(7,4),
                     (0,4),(1,5),(2,6),(3,7),]
-            BoundingBox_object = bf42_createMesh(vertices,[], fileName, fileName+'_BoundingBox',edges = edges)
+            BoundingBox_object = bf42_createMesh(vertices,[], filePath, '_BoundingBox',edges = edges)
             BoundingBox_object.scale = (sceneScale,sceneScale,sceneScale)
         numCollisionMeshes = sm_i(f)
         
@@ -834,7 +836,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                     vertices.append((vertex.vertex[0],vertex.vertex[2],vertex.vertex[1]))
                 for face in collisionMesh.faces:
                     faces.append(face.vertices)
-                object = bf42_createMesh(vertices,faces, fileName, fileName+'_COL'+str(collisionMeshNumber+1))
+                object = bf42_createMesh(vertices,faces, filePath, '_COL'+str(collisionMeshNumber+1))
                 mesh = object.data
                 materialIDs = []
                 for i, polygon in enumerate(mesh.polygons):
@@ -866,7 +868,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 if rs_matterial == False:
                     rs_matterial = bf42_material(material.name)
                 # ToDo: add vertexNormals
-                object = bf42_createMesh(material.vertexValues,material.faces, fileName, fileName+'_LOD'+str(LodNumber+1)+'_Material'+str(materialNumber))
+                object = bf42_createMesh(material.vertexValues,material.faces, filePath, '_LOD'+str(LodNumber+1)+'_Material'+str(materialNumber))
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 mesh = object.data
                 texutre_uv_layer = mesh.uv_layers.new(name='textureMap')
@@ -901,7 +903,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                     for ShadowLodNumber in range(numShadowLods):
                         LOD_mesh = sm_LOD_mesh().read(f)
                         for materialNumber, material in enumerate(LOD_mesh.materials):
-                            object = bf42_createMesh(material.vertexValues,material.faces, fileName, fileName+'_ShadowLOD')
+                            object = bf42_createMesh(material.vertexValues,material.faces, filePath, '_ShadowLOD')
                             object.scale = (sceneScale,sceneScale,sceneScale)
                         bpy.context.view_layer.objects.active = object
                         if merge_shared_verticies:
