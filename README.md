@@ -26,11 +26,15 @@ The add-on is still in a very early stage.
 	```
 	bpy.ops.wm.redraw_timer(type='DRAW_WIN', iterations=1)
 	```
+- Heightmap import/export:
+	- add support for materialSize and worldSize
 - .sm import:
+	- Tris to Quads option (Compare UVs)
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
-	- research matterial settings inside .sm (LOD)
+	- research matterial settings inside .sm (LOD), this really needs to be done to fix some weird alpha blending
 	- let LODs share the same Material
+	- add posibility too share Materials (with same properties) between different Objects
 - .sm export:
 	- LOD generation
 	- create dummy Visible mesh if none supplied
@@ -40,6 +44,8 @@ The add-on is still in a very early stage.
 		By separating it, the boundary between faces will appear angular in the game.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
+-	.tm import:
+	- Tris to Quads option (Compare UVs)
 -	.tm export:
 	- order branches per angle on distance
 	- the normal of the sprites doesnt matter but the export flips something randomly. This causes the Import of the flipped export the flip the normals (in bf42 the normals are not fliped).

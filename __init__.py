@@ -39,6 +39,7 @@ classes = (
     
     BF1942_ReadConFiles,
     BF1942_SelectLevel,
+    BF1942_ImportHeightMapLevel,
     BF1942_ImportLevelMeshes,
     BF1942_ImportStaticObjects,
     BF1942_AddStaticObject,

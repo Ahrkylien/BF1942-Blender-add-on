@@ -1,7 +1,16 @@
-import shlex
 from shlex import split as bf42_split_arguments
 import os
 import math
+import pickle
+import json
+
+#method to store objects as strings:
+def dumps(objectToDump):
+    return(json.dumps(objectToDump))
+    # return(pickle.dumps(objectToDump).hex())
+def loads(stringToLoad):
+    return(json.loads(stringToLoad))
+    # return(pickle.loads(bytes.fromhex(stringToLoad)))
 
 class bf42_vec3:
     x = 0
@@ -20,6 +29,9 @@ class bf42_vec3:
                 self.x = v[0]
                 self.y = v[0]
                 self.z = v[0]
+            elif len(v) == 2 and len(v_str) == 2:
+                self.x = v[0]
+                self.y = v[1]
             elif len(v) == 3 and len(v_str) == 3:
                 self.x = v[0]
                 self.y = v[1]
@@ -73,12 +85,14 @@ class BF42_command:
         if len(cmd_split2) == 2:
             self.method = cmd_split2[1]
         if len(cmd_split1) == 2:
-            arguments_str = cmd_split1[1].replace("'", "'\\'")
+            arguments_str = cmd_split1[1].replace("\\", "/").replace("'", "'\\'")
             try:
                 self.arguments = bf42_split_arguments(arguments_str)
             except: # avoid not closing quote error:
                 self.arguments = bf42_split_arguments(arguments_str+'"')
     
+def bf42_is_linked(template):
+    return(type(template) != str or type(template) == int)
 
 class BF42_data:
     def __init__(self):
@@ -89,6 +103,7 @@ class BF42_data:
         self.active_ObjectTemplate = None
         self.active_GeometryTemplate = None
         self.active_Object = None
+        self.textureManager_alternativePaths = []
         self.variables = []
         self.constants = []
     
@@ -107,29 +122,103 @@ class BF42_data:
         
     def creatLinks(self):
         for object in self.objects:
-            if object.template_link == None:
-                object.template_link = self.getObjectTemplate(object.template)
+            if not bf42_is_linked(object.template):
+                template = self.getObjectTemplate(object.template)
+                if template != None:
+                    object.template = template
         for objectTemplate in self.objectTemplates:
             for child in objectTemplate.childeren:
-                if child.template_link == None:
-                    child.template_link = self.getObjectTemplate(child.template)
-            objectTemplate.geometry_link = self.getGeometryTemplate(objectTemplate.geometry)
-        return(None)
+                if not bf42_is_linked(child.template):
+                    template = self.getObjectTemplate(child.template)
+                    if template != None:
+                        child.template = template
+            geometry = self.getGeometryTemplate(objectTemplate.geometry)
+            if geometry != None:
+                objectTemplate.geometry = geometry
+        
+    def dumps(self):
+        list_dump = [[],[],[],[]]
+        for objectTemplate in self.objectTemplates:
+            geometry = self.geometryTemplates.index(objectTemplate.geometry) if bf42_is_linked(objectTemplate.geometry) else objectTemplate.geometry
+            childeren = []
+            for child in objectTemplate.childeren:
+                template = self.objectTemplates.index(child.template) if bf42_is_linked(child.template) else child.template
+                childeren.append([template, child.setPosition.lst(), child.setRotation.lst()])
+            linePoints = [linePoint.lst() for linePoint in objectTemplate.linePoints]
+            list_dump[0].append([objectTemplate.type, objectTemplate.name, geometry, objectTemplate.triggerRadius, linePoints, childeren])
+        for geometryTemplate in self.geometryTemplates:
+            list_dump[1].append([geometryTemplate.type, geometryTemplate.name, geometryTemplate.scale.lst(), geometryTemplate.file, geometryTemplate.materialSize, geometryTemplate.worldSize, geometryTemplate.yScale, geometryTemplate.waterLevel])
+        for object in self.objects:
+            template = self.objectTemplates.index(object.template) if bf42_is_linked(object.template) else object.template
+            list_dump[2].append([template, object.absolutePosition.lst(), object.rotation.lst(), object.geometry_scale.lst()])
+        for staticObject in self.staticObjects:
+            list_dump[3].append(self.objects.index(staticObject))
+        return(dumps(list_dump))
+        
+    def loads(self, dataDump):
+        list_dump = loads(dataDump)
+        #load objectTemplates
+        for (type, name, geometry, triggerRadius, linePoints, childeren) in list_dump[0]:
+            objectTemplate = BF42_ObjectTemplate(type, name)
+            objectTemplate.geometry = geometry
+            objectTemplate.triggerRadius = triggerRadius
+            objectTemplate.linePoints = [bf42_vec3(linePoint) for linePoint in linePoints]
+            for (template, setPosition, setRotation) in childeren:
+                objectTemplateChild = BF42_ObjectTemplateChild(template)
+                objectTemplateChild.setPosition = bf42_vec3(setPosition)
+                objectTemplateChild.setRotation = bf42_vec3(setRotation)
+                objectTemplate.childeren.append(objectTemplateChild)
+            self.objectTemplates.append(objectTemplate)
+        #load geometryTemplates
+        for (type, name, scale, file, materialSize, worldSize, yScale, waterLevel) in list_dump[1]:
+            geometryTemplate = BF42_GeometryTemplate(type, name)
+            geometryTemplate.scale = bf42_vec3(scale)
+            geometryTemplate.file = file
+            geometryTemplate.materialSize = materialSize
+            geometryTemplate.worldSize = worldSize
+            geometryTemplate.yScale = yScale
+            geometryTemplate.waterLevel = waterLevel
+            self.geometryTemplates.append(geometryTemplate)
+        #link objectTemplates
+        for objectTemplate in self.objectTemplates:
+            for child in objectTemplate.childeren:
+                if bf42_is_linked(child.template):
+                    child.template = self.objectTemplates[child.template]
+            if bf42_is_linked(objectTemplate.geometry):
+                objectTemplate.geometry = self.geometryTemplates[objectTemplate.geometry]
+        #load and link objects
+        for (template, absolutePosition, rotation, geometry_scale) in list_dump[2]:
+            object = BF42_Object("")
+            object.template = self.objectTemplates[template] if bf42_is_linked(template) else template
+            object.absolutePosition = bf42_vec3(absolutePosition)
+            object.rotation = bf42_vec3(rotation)
+            object.geometry_scale = bf42_vec3(geometry_scale)
+            self.objects.append(object)
+        #load and link staticObjects
+        for i in list_dump[3]:
+            self.staticObjects.append(self.objects[i])
+        return(self)
 
 class BF42_ObjectTemplate:
     def __init__(self, type, name):
         self.type = type
         self.name = name
-        self.geometry = None
+        self.geometry = "" #string will be replaced by a reference after linking
+        self.triggerRadius = 0
+        self.linePoints = []
         self.childeren = []
         self.active_child = None
-        self.geometry_link = None
         
     def setProperty(self, method, arguments):
         if len(arguments) == 1: #all used commands thus far require 1 argument
             value = arguments[0]
             if method == 'geometry':
                 self.geometry = value
+            elif method == 'triggerradius':
+                if value.isdigit():
+                    self.triggerRadius = int(value)
+            elif method == 'addlinepoint':
+                self.linePoints.append(bf42_vec3(value))
             elif method == 'addtemplate':
                 self.active_child = BF42_ObjectTemplateChild(value)
                 self.childeren.append(self.active_child)
@@ -149,10 +238,9 @@ class BF42_ObjectTemplate:
         
 class BF42_ObjectTemplateChild:
     def __init__(self, template):
-        self.template = template
+        self.template = template #string will be replaced by a reference after linking
         self.setPosition = bf42_vec3((0,0,0))
         self.setRotation = bf42_vec3((0,0,0))
-        self.template_link = None
         
 class BF42_GeometryTemplate:
     def __init__(self, type, name):
@@ -160,6 +248,10 @@ class BF42_GeometryTemplate:
         self.name = name
         self.scale = bf42_vec3((1,1,1))
         self.file = None
+        self.materialSize = 256
+        self.worldSize = 1024
+        self.yScale = 1
+        self.waterLevel = 0
         
     def setProperty(self, method, arguments):
         if len(arguments) == 1: #all used commands thus far require 1 argument
@@ -167,15 +259,30 @@ class BF42_GeometryTemplate:
             if method == 'scale':
                 self.scale = bf42_vec3(value)
             elif method == 'file':
-                self.file = value
+                self.file = value.replace("\\","/")
+            elif method == 'materialsize':
+                if value.isdigit():
+                    self.materialSize = int(value)
+            elif method == 'worldsize':
+                if value.isdigit():
+                    self.worldSize = int(value)
+            elif method == 'yscale':
+                try:
+                    self.yScale = float(value)
+                except ValueError:
+                    pass
+            elif method == 'waterlevel':
+                try:
+                    self.waterLevel = float(value)
+                except ValueError:
+                    pass
         
 class BF42_Object:
     def __init__(self, template):
-        self.template = template
+        self.template = template #string will be replaced by a reference after linking
         self.absolutePosition = bf42_vec3((0,0,0))
         self.rotation = bf42_vec3((0,0,0))
         self.geometry_scale = bf42_vec3((1,1,1))
-        self.template_link = None
     
     def setProperty(self, name, arguments):
         if len(arguments) == 1: #all used commands thus far require 1 argument
@@ -240,6 +347,7 @@ class BF42_script:
                                 else:
                                     if data.active_ObjectTemplate != None:
                                         data.active_ObjectTemplate.setProperty(command.method, command.arguments)
+                            
                             if command.className == "geometrytemplate":
                                 if command.method == "create":
                                     if numArgs == 2:
@@ -254,6 +362,7 @@ class BF42_script:
                                 else:
                                     if data.active_GeometryTemplate != None:
                                         data.active_GeometryTemplate.setProperty(command.method, command.arguments)
+                            
                             elif command.className == "object":
                                 if command.method == "create":
                                     if numArgs == 1:
@@ -264,6 +373,12 @@ class BF42_script:
                                 else:
                                     if data.active_Object != None:
                                         data.active_Object.setProperty(command.method, command.arguments)
+                            
+                            elif command.className == "texturemanager":
+                                if command.method == "alternativepath":
+                                    if numArgs == 1:
+                                        data.textureManager_alternativePaths.append(command.arguments[0])
+                            
                             elif command.className == "include":
                                 if numArgs == 1:
                                     path_include = os.path.join(directory,command.arguments[0])
@@ -307,11 +422,12 @@ def bf42_writeStaticCon(path, objects, data):
     data.creatLinks()
     with open(path, 'w') as f:
         for object in objects:
-            f.write("object.create "+object.template+"\n")
+            templateName = object.template.name if bf42_is_linked(object.template) else object.template
+            f.write("object.create "+templateName+"\n")
             f.write("object.absolutePosition "+object.absolutePosition.str()+"\n")
             f.write("object.rotation "+object.rotation.str()+"\n")
-            if object.template_link != None:
-                meshes = bf42_listAllGeometries(object.template_link)
+            if bf42_is_linked(object.template):
+                meshes = bf42_listAllGeometries(object.template)
                 for mesh in meshes[0]:
                     if mesh[1] == "treemesh":
                         f.write("object.geometry.scale 1\n")
@@ -328,8 +444,8 @@ def bf42_listAllGeometries(objectTemplate, pos = None, rot = None, isFarLod = Fa
     if rot == None:
         rot = bf42_vec3((0,0,0))
     list = [[],[]] # [[close LOD] , [far LOD]]
-    if objectTemplate.geometry_link != None:
-        geometryTemplate = objectTemplate.geometry_link
+    if bf42_is_linked(objectTemplate.geometry):
+        geometryTemplate = objectTemplate.geometry
         if geometryTemplate.file != "":
             list[1 if isFarLod else 0].append((geometryTemplate.file, geometryTemplate.type, pos, rot))
     for i, child in enumerate(objectTemplate.childeren):
@@ -340,8 +456,34 @@ def bf42_listAllGeometries(objectTemplate, pos = None, rot = None, isFarLod = Fa
                 isFarLod = True
             if i == 2: #dont add destroyed LOD
                 break
-        if child.template_link != None:
-            subList = bf42_listAllGeometries(child.template_link, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod) # can I add rotation vectors?
+        if bf42_is_linked(child.template):
+            subList = bf42_listAllGeometries(child.template, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod) # can I add rotation vectors?
+            list[0] += subList[0]
+            list[1] += subList[1]
+    return(list)
+# These functions are for processing in Blender:
+
+def bf42_listAllGeometries_new(objectTemplate, pos = None, rot = None, isFarLod = False):
+    # ToDo:
+    # child templates are first moved and then rotated (relative to the parent origin)
+    if pos == None:
+        pos = bf42_vec3((0,0,0))
+    if rot == None:
+        rot = bf42_vec3((0,0,0))
+    list = [[],[]] # [[close LOD] , [far LOD]]
+    if bf42_is_linked(objectTemplate.geometry):
+        if objectTemplate.geometry.file != "":
+            list[1 if isFarLod else 0].append((objectTemplate.geometry, pos, rot))
+    for i, child in enumerate(objectTemplate.childeren):
+        if objectTemplate.type == "lodobject":
+            if not len(objectTemplate.childeren) in [2,3]:
+                print("Error: "+objectTemplate.name+" has wrong number of childeren for LodObject!!")
+            if i == 1:
+                isFarLod = True
+            if i == 2: #dont add destroyed LOD
+                break
+        if bf42_is_linked(child.template):
+            subList = bf42_listAllGeometries_new(child.template, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod) # can I add rotation vectors?
             list[0] += subList[0]
             list[1] += subList[1]
     return(list)

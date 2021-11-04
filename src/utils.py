@@ -4,7 +4,6 @@ from bpy.types import Operator, Panel, PropertyGroup, AddonPreferences
 from bpy_extras.view3d_utils import region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 import os
 from math import pi
-import pickle 
 
 from .heightmap import bf42_heightmap
 from .standard_mesh import bf42_import_sm, bf42_export_sm
@@ -12,13 +11,9 @@ from .tree_mesh import bf42_import_tm, bf42_export_tm
 from .bf42_script import *
 from .light_map import light_map_export
 from .place_object import bf42_placeObject
+from .import_geometry import bf42_importGeometry
 from .misc import *
 
-#method to store objects as strings:
-def dumps(objectToDump):
-    return(pickle.dumps(objectToDump).hex())
-def loads(stringToLoad):
-    return(pickle.loads(bytes.fromhex(stringToLoad)))
 
 #Operators
 class BF1942_ImportHeightMap(Operator):
@@ -41,7 +36,6 @@ class BF1942_ImportHeightMap(Operator):
                     BF1942Settings.WorldSize = heightmap.worldSize
                 if BF1942Settings.addWater:
                     heightmap.generateWaterMesh(BF1942Settings.waterLevel)
-            del heightmap
         return {'FINISHED'}
 class BF1942_ExportHeightMap(Operator):
     """An Operator for the BF1942 addon"""
@@ -64,7 +58,6 @@ class BF1942_ExportHeightMap(Operator):
                     if BF1942Settings.AddHeightmapAfterExport:
                         heightmap.addImportMapPath(os.path.join(ExportHeightmapFile,"Heightmap.raw"))
                         heightmap.generateMesh()
-                    del heightmap
                 else:
                     BF1942Settings.HeightmapObject = None
         return {'FINISHED'}
@@ -256,7 +249,7 @@ class BF1942_ReadConFiles(Operator):
         level = BF1942Settings.SelectedLevel
         
         data = bf42_readAllConFiles(path,level)
-        BF1942Settings.AllBF42Data = dumps(data)
+        BF1942Settings.AllBF42Data = data.dumps()
         
         #fill ObjectTemplateList:
         ObjectTemplateList = []
@@ -264,6 +257,51 @@ class BF1942_ReadConFiles(Operator):
             meshList = bf42_listAllGeometries(objectTemplate)
             ObjectTemplateList.append((objectTemplate.name,objectTemplate.type,len(meshList[0])))
         BF1942Settings.ObjectTemplateList = dumps(ObjectTemplateList)
+        
+        #fill TextureDirList:
+        TextureDirList = []
+        for TextureDir in data.textureManager_alternativePaths:
+            TextureDirList.append(TextureDir)
+        BF1942Settings.TextureDirList = dumps(TextureDirList)
+        return {'FINISHED'}
+class BF1942_ImportHeightMapLevel(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importheightmaplevel"
+    bl_label = "Import BF1942 Heightmap for Level"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
+        
+        materialSize = 256
+        worldSize = 1024
+        yScale = BF1942Settings.yScale
+        waterLevel = BF1942Settings.waterLevel
+        
+        for object in data.objects:
+            if bf42_is_linked(object.template):
+                if bf42_is_linked(object.template.geometry):
+                    geometryTemplate = object.template.geometry
+                    if geometryTemplate.type == "patchterrain":
+                        materialSize = geometryTemplate.materialSize
+                        worldSize = geometryTemplate.worldSize
+                        yScale = geometryTemplate.yScale
+                        waterLevel = geometryTemplate.waterLevel
+                        break
+        
+        path = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\Heightmap.raw")
+        if os.path.exists(path):
+            xzScale = worldSize/materialSize/4
+            heightmap = bf42_heightmap(yScale/xzScale, BF1942Settings.sceneScale*xzScale) # ugly trick to add resolution (xzScale) to sceneScale and yScale..
+            heightmap.addImportMapPath(path)
+            if heightmap.fileERROR:
+                print(heightmap.fileERRORMessage)
+            else:
+                heightmap.generateMesh()
+                heightmap.generateWaterMesh(waterLevel)
         return {'FINISHED'}
 class BF1942_ImportLevelMeshes(Operator):
     """An Operator for the BF1942 addon"""
@@ -274,61 +312,29 @@ class BF1942_ImportLevelMeshes(Operator):
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
         base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
         level = BF1942Settings.SelectedLevel
+        preLoadAllMeshes = BF1942Settings.PreLoadAllMeshes
         sceneScale = BF1942Settings.sceneScale
         
-        StandardMeshes = []
-        TreeMeshes = []
-        StandardMeshesLevel = []
-        TreeMeshesLevel = []
-        
-        directory1 = os.path.join(base_path,"StandardMesh")
-        for path, subdirs, files in os.walk(directory1):
-            for name in files:
-                relPath = os.path.relpath(os.path.join(path, name),directory1)
-                extension = os.path.splitext(relPath)[1]
-                if extension == ".sm":
-                    StandardMeshes.append(relPath)
-        directory2 = os.path.join(base_path,"treeMesh")
-        for path, subdirs, files in os.walk(directory2):
-            for name in files:
-                relPath = os.path.relpath(os.path.join(path, name),directory2)
-                extension = os.path.splitext(relPath)[1]
-                if extension == ".tm":
-                    TreeMeshes.append(relPath)
-        if level != "":
-            directory3 = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\StandardMesh")
-            for path, subdirs, files in os.walk(directory3):
-                for name in files:
-                    relPath = os.path.relpath(os.path.join(path, name),directory3)
-                    extension = os.path.splitext(relPath)[1]
-                    if extension == ".sm":
-                        if relPath in StandardMeshes:
-                            StandardMeshes.remove(relPath)
-                        StandardMeshesLevel.append(relPath)
-            directory4 = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\treeMesh")
-            for path, subdirs, files in os.walk(directory4):
-                for name in files:
-                    relPath = os.path.relpath(os.path.join(path, name),directory4)
-                    extension = os.path.splitext(relPath)[1]
-                    if extension == ".tm":
-                        if relPath in TreeMeshes:
-                            TreeMeshes.remove(relPath)
-                        TreeMeshesLevel.append(relPath)
+        geometryTemplates = set()
+        if not preLoadAllMeshes:
+            objectTemplates = set()
+            for object in data.objects:
+                if bf42_is_linked(object.template):
+                    objectTemplates.add(object.template)
+            for objectTemplate in objectTemplates:
+                if bf42_is_linked(objectTemplate.geometry):
+                    geometryTemplates.add(objectTemplate.geometry)
+        else:
+            geometryTemplates = data.geometryTemplates
         
         wm = bpy.context.window_manager
-        wm.progress_begin(0, len(StandardMeshes)+len(TreeMeshes)+len(StandardMeshesLevel)+len(TreeMeshesLevel))
-        for i, StandardMesh in enumerate(StandardMeshes):
-            bf42_import_sm(os.path.join(directory1, StandardMesh), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMesh)[0].replace("/", "\\"))
-            wm.progress_update(i)
-        for i, TreeMesh in enumerate(TreeMeshes):
-            bf42_import_tm(os.path.join(directory2, TreeMesh), False, False, False, True, True, sceneScale, os.path.splitext(TreeMesh)[0].replace("/", "\\"))
-            wm.progress_update(i)
-        for i, StandardMeshLevel in enumerate(StandardMeshesLevel):
-            bf42_import_sm(os.path.join(directory3, StandardMeshLevel), False, False, True, True, False, True, sceneScale, os.path.splitext(StandardMeshLevel)[0].replace("/", "\\"))
-            wm.progress_update(i)
-        for i, TreeMeshLevel in enumerate(TreeMeshesLevel):
-            bf42_import_tm(os.path.join(directory4, TreeMeshLevel), False, False, False, True, True, sceneScale, os.path.splitext(TreeMeshLevel)[0].replace("/", "\\"))
+        wm.progress_begin(0, len(geometryTemplates))
+        print("len(geometryTemplates)")
+        print(len(geometryTemplates))
+        for i, geometryTemplate in enumerate(geometryTemplates):
+            bf42_importGeometry(geometryTemplate, base_path, level, data, sceneScale, True)
             wm.progress_update(i)
         wm.progress_end()
         return {'FINISHED'}
@@ -343,12 +349,13 @@ class BF1942_ImportStaticObjects(Operator):
         
         sceneScale = BF1942Settings.sceneScale
         loadFarLOD = False
-        
-        data = loads(BF1942Settings.AllBF42Data)
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
         
         for object in data.staticObjects:
-            if object.template_link != None:
-                bf42_placeObject(object.template_link, sceneScale, object.absolutePosition, object.rotation)
+            if bf42_is_linked(object.template):
+                bf42_placeObject(object.template, sceneScale, base_path, level, data, object.absolutePosition, object.rotation, loadFarLOD)
             else:
                 print("Error: "+object.template+" objectTemplate does not exist!!")
             # popupMessage("warnings",["Some Objects not found, check console message"])
@@ -369,17 +376,23 @@ class BF1942_AddStaticObject(Operator):
 
     def execute(self, context):
         BF1942Settings = bpy.context.scene.BF1942Settings
-        data = loads(BF1942Settings.AllBF42Data)
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
         sceneScale = BF1942Settings.sceneScale
         ObjectTemplate = data.getObjectTemplate(self.ObjectTemplateListLocal)
+        print("step 1")
         if ObjectTemplate != None:
-            object = bf42_placeObject(ObjectTemplate, sceneScale)
+            object = bf42_placeObject(ObjectTemplate, sceneScale, base_path, level, data)
             if object != None:
                 bpy.ops.object.select_all(action='DESELECT')
                 object.select_set(True)
                 BF1942Settings.SelectedObject = object
-                bpy.ops.bf1942.addstaticobject_modal_timer_operator()
-        return {'FINISHED'}
+                print("step 2")
+                # bpy.ops.bf1942.addstaticobject_modal_timer_operator()
+                print("step 3")
+        # return {'RUNNING_MODAL'}
+        return(bpy.ops.bf1942.addstaticobject_modal_timer_operator())
 
     def invoke(self, context, event):
         context.window_manager.invoke_search_popup(self)
@@ -395,11 +408,14 @@ class BF1942_AddStaticObjectModalTimerOperator(bpy.types.Operator):
     def modal(self, context, event):
         BF1942Settings = bpy.context.scene.BF1942Settings
         sceneScale = BF1942Settings.sceneScale
+        print("step 4")
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.cancel(context)
             return {'CANCELLED'}
         if event.type == 'MOUSEMOVE' and event.value == 'RELEASE':
+            print("step 5")
             if context.area.type == 'VIEW_3D':
+                print("step 6")
                 r3d = context.space_data.region_3d
                 x, y = event.mouse_region_x, event.mouse_region_y
                 origin = region_2d_to_origin_3d(context.region, r3d, (x, y))
@@ -428,15 +444,18 @@ class BF1942_AddStaticObjectModalTimerOperator(bpy.types.Operator):
         return {'PASS_THROUGH'}
 
     def execute(self, context):
+        print("step x")
         if context.area.type != 'VIEW_3D':
             print("Must use in a 3d region")
             return {'CANCELLED'}
         wm = context.window_manager
+        print("step xx")
         self._timer = wm.event_timer_add(0.1, window=context.window)
         wm.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
     def cancel(self, context):
+        print("step xxx")
         wm = context.window_manager
         wm.event_timer_remove(self._timer)
 class BF1942_ExportStaticObjects(Operator):
@@ -450,7 +469,7 @@ class BF1942_ExportStaticObjects(Operator):
         base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
         level = BF1942Settings.SelectedLevel
         sceneScale = BF1942Settings.sceneScale
-        data = loads(BF1942Settings.AllBF42Data)
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
         
         if BF1942Settings.ExportConStaticFileBool:
             path = bpy.path.abspath(BF1942Settings.ExportConStaticFile)
@@ -745,6 +764,8 @@ class BF1942_PT_ImportCon(Panel):
             col.operator("bf1942.selectlevel", text="Select Level (can be empty)")
         col.operator("bf1942.readconfiles", text="Load Files")
         if BF1942Settings.AllBF42Data != "80034e2e":
+            col.operator("bf1942.importheightmaplevel", text="Import Heightmap")
+            col.prop(settings, 'PreLoadAllMeshes', text='PreLoad ALL Meshes')
             col.operator("bf1942.importlevelmeshes", text="Import (Tree)Meshes")
             col.operator("bf1942.importstaticobjects", text="Import Static Objects")
             
@@ -1219,7 +1240,9 @@ class BF1942Settings(PropertyGroup):
     
     AllBF42Data : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     LevelList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
+    TextureDirList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     SelectedLevel : StringProperty(default = "")
+    PreLoadAllMeshes : BoolProperty(name = "PreLoadAllMeshes", description = "PreLoadAllMeshes", default = False)
     ObjectTemplateList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     SelectedObject : PointerProperty(type=bpy.types.Object)
     

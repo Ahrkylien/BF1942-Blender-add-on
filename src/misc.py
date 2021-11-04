@@ -1,8 +1,17 @@
 import bpy
 import os
 from math import pi
+import pickle
 
 from .bf42_script import bf42_vec3
+
+
+#method to store objects as strings:
+def dumps(objectToDump):
+    return(pickle.dumps(objectToDump).hex())
+def loads(stringToLoad):
+    return(pickle.loads(bytes.fromhex(stringToLoad)))
+
 
 popupMessages = []
 def draw_popupMessage(self, context):
@@ -61,16 +70,48 @@ def bf42_getCollectionByName(name,parentCollection = None):
         parentCollection.children.link(collection)
     return(collection)
 
-def bf42_getTexturePathByName(textureName):
+def bf42_getTextureDirs():
+    # ToDo: relative paths: ../../bf1942/levels/Floating_Archipelago/menu/serverInfo.dds
     BF1942Settings = bpy.context.scene.BF1942Settings
-    defaultTexPath = BF1942Settings.TextureDirectory
-    FILE_PATH_dds=bpy.path.abspath(defaultTexPath+textureName+".dds")
-    if os.path.isfile(FILE_PATH_dds):
-        return(FILE_PATH_dds)
-    FILE_PATH_tga=bpy.path.abspath(defaultTexPath+textureName+".tga")
-    if os.path.isfile(FILE_PATH_tga):
-        return(FILE_PATH_tga)
-    return(False)
+    base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+    TextureDirList = loads(BF1942Settings.TextureDirList)
+    TextureDirList = [os.path.join(base_path, dir) for dir in TextureDirList] if TextureDirList != None else [] # textureManager.alternativePath bf1942/Levels/Liberation_of_Caen/Texture
+    TextureDirList.append(os.path.join(base_path,"texture"))
+    TextureDirList.append(base_path) # absolute paths: bf1942/levels/GC_Mos_Eisley/textures/tat_wood_1 (in rs)
+    TextureDirList.insert(0,bpy.path.abspath(BF1942Settings.TextureDirectory))
+    return(TextureDirList)
+
+def bf42_getTexturePathByName(textureName):
+    for dir in bf42_getTextureDirs():
+        for ext in ['.dds','.tga']:
+            texture_path = os.path.join(dir,textureName+ext)
+            if os.path.isfile(texture_path):
+                return(texture_path)
+    return(None)
+
+def bf42_getMeshPath(geometryTemplate):
+    if geometryTemplate.type in ["standardmesh", "animatedmesh", "treemesh"]:
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+        level = BF1942Settings.SelectedLevel
+        if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
+            folderName = "StandardMesh"
+            ext = ".sm"
+        elif geometryTemplate.type == "treemesh":
+            folderName = "treeMesh"
+            ext = ".tm"
+        if level != "":
+            directory = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\"+folderName)
+            mesh_path = os.path.join(directory,geometryTemplate.file+ext)
+            if os.path.isfile(mesh_path):
+                rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
+                return((mesh_path,rel_path))
+        directory = os.path.join(base_path,folderName)
+        mesh_path = os.path.join(directory,geometryTemplate.file+ext)
+        if os.path.isfile(mesh_path):
+            rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
+            return((mesh_path,rel_path))
+    return((None,None))
     
 def bf42_getPosition(object, sceneScale = 1):
     p = object.location
@@ -133,7 +174,7 @@ def bf42_getCollection():
 def bf42_addSpecialObject(object):
     bf42_getCollection().objects.link(object)
 
-def bf42_duplicateSpecialObject(object,newName=None):
+def bf42_duplicateSpecialObject(object, newName=None):
     newObject = object.copy()
     newObject.data = object.data.copy()
     newObject.animation_data_clear()
@@ -147,7 +188,7 @@ def bf42_duplicateSpecialObject(object,newName=None):
 def bf42_getMeshesCollection():
     return(bf42_getCollectionByName('bf42_meshes'))
     
-def bf42_createMesh(vertices,faces, fileName, meshName="no name", edges=[]): #change to bf42_createMesh
+def bf42_createMesh(vertices, faces, fileName, meshName="no name", edges=[]): #change to bf42_createMesh
     meshesCollection = bf42_getMeshesCollection()
     meshCollection = bf42_getCollectionByName(fileName,meshesCollection)
     object = bf42_createUnlinkedObject(vertices,faces, meshName, edges)
@@ -159,11 +200,21 @@ def bf42_createMesh(vertices,faces, fileName, meshName="no name", edges=[]): #ch
 def bf42_getTreeMeshesCollection():
     return(bf42_getCollectionByName('bf42_tree_meshes'))
 
-def bf42_createTreeMesh(vertices,faces, fileName, meshName="no name", edges=[]):
+def bf42_createTreeMesh(vertices, faces, fileName, meshName="no name", edges=[]):
     treesCollection = bf42_getTreeMeshesCollection()
     treeCollection = bf42_getCollectionByName(fileName,treesCollection)
-    object = bf42_createUnlinkedObject(vertices,faces, meshName, edges)
+    object = bf42_createUnlinkedObject(vertices, faces, meshName, edges)
     treeCollection.objects.link(object)
+    return(object)
+
+#AreaObject:
+def bf42_getAreaObjectsCollection():
+    return(bf42_getCollectionByName('bf42_area_objects'))
+
+def bf42_createAreaObject(vertices, edges, meshName="no name"):
+    collection = bf42_getAreaObjectsCollection()
+    object = bf42_createUnlinkedObject(vertices,[], meshName, edges)
+    collection.objects.link(object)
     return(object)
 
 

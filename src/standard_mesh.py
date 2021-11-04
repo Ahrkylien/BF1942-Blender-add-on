@@ -192,8 +192,13 @@ class sm_LOD_mesh_material:
         self.numVertices = len(vertexValues) if vertexValues != None else 0
         self.numFaceValues = (len(faces) if faces != None else 0)*3
         self.materialSettings = materialSettings # mostly 0:,4 for windows depthwrite, and iv seen 2 for Kit_AlliesAssault_m1_Material1/Yak9_hull_m1_Material1/Willy_Hul_M1_Material2
-        # probably bit 2 is for transparent enable, and bit 3 is for depthwrite enable
-        # bit 2 is not required as far as I know, bit 3 is required to achieve depthwrite
+        # 12 for supplyde_m1_Material1 (1100)
+        # bit0: citymesh1_M1_Material4,wreck_Spitfire_2_M1_Material1, citymesh1_closed_M1_Material4
+        # bit1: Kit_AlliesAssault_m1_Material1/Yak9_hull_m1_Material1/Willy_Hul_M1_Material2
+        # bit2: supplyde_m1_Material1 (used for windows and door-openings to create depthwrite)
+        # bit3: supplyde_m1_Material1
+        # probably bit1 is for transparent enable, and bit2 is for depthwrite enable
+        # bit1 is not required as far as I know, bit2 is required to achieve depthwrite
         
         self.vertexValues = [] if vertexValues is None else vertexValues
         self.vertexNormals = [] if vertexNormals is None else vertexNormals
@@ -316,7 +321,7 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
     node_UVMap_texture.uv_map = "textureMap"
     links = mat.node_tree.links
     FILE_PATH = bf42_getTexturePathByName(rs_matterial.texture)
-    if FILE_PATH != False:
+    if FILE_PATH != None:
         image = bpy.data.images.load(FILE_PATH, check_existing=True)
         node_texture.image = image
         new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
@@ -794,8 +799,6 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
     path_rs = os.path.splitext(path)[0]+".rs"
     path_sm = os.path.splitext(path)[0]+".sm"
 
-    print(fileName)
-
     rs_materials = bf42_materials()
     rs_materials.read_rs_file(path_rs)
     
@@ -819,13 +822,11 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
             BoundingBox_object = bf42_createMesh(vertices,[], fileName, fileName+'_BoundingBox',edges = edges)
             BoundingBox_object.scale = (sceneScale,sceneScale,sceneScale)
         numCollisionMeshes = sm_i(f)
-#        print('COLLISION_COUNT: {}'.format(numTopModels))
         
         for collisionMeshNumber in range(numCollisionMeshes):
             sizeOfSection = sm_i(f)
             if add_Collision:
                 startOffset = f.tell()
-                print('COL_{}'.format(collisionMeshNumber))
                 collisionMesh = sm_COL_mesh().read(f)
                 vertices = []
                 faces = []
@@ -858,12 +859,9 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
         if add_only_main_LOD: numLodsToPars = min(numLods,1)
         if not add_Visible: numLodsToPars = 0
         for LodNumber in range(numLodsToPars):
-            print('LOD_{}'.format(LodNumber))
             bpy.ops.object.select_all(action='DESELECT')
             LOD_mesh = sm_LOD_mesh().read(f)
-            print('MATTERIALS_{}'.format(len(LOD_mesh.materials)))
             for materialNumber, material in enumerate(LOD_mesh.materials):
-                print('MATTERIAL')
                 rs_matterial = rs_materials.get_material(material.name)
                 if rs_matterial == False:
                     rs_matterial = bf42_material(material.name)
@@ -901,7 +899,6 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 if hasShadowLods == 1:
                     numShadowLods = sm_i(f) # 1 seems to be for number of ShadowLods, is it always 1?
                     for ShadowLodNumber in range(numShadowLods):
-                        print('SHADOW_LOD_{}'.format(ShadowLodNumber))
                         LOD_mesh = sm_LOD_mesh().read(f)
                         for materialNumber, material in enumerate(LOD_mesh.materials):
                             object = bf42_createMesh(material.vertexValues,material.faces, fileName, fileName+'_ShadowLOD')
