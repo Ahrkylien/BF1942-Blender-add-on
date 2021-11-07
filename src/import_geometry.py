@@ -8,6 +8,8 @@ def bf42_getGeometryTemplateMeshes(geometryTemplate):
     objects = []
     if geometryTemplate.type in ["standardmesh", "animatedmesh", "treemesh"]:
         mesh_path, rel_path = bf42_getMeshPath(geometryTemplate)
+        if mesh_path == None:
+            return([])
         if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
             meshCollection = bf42_getMeshesCollection()
         elif geometryTemplate.type == "treemesh":
