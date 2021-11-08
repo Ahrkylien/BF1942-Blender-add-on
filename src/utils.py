@@ -823,7 +823,6 @@ class BF1942_PT_material(Panel):
         col  = LOD_box.column(align=True)
         col.label(text="For LOD Meshes:", icon="MATERIAL_DATA")
         col.prop(ob.active_material.BF1942_sm_Properties, "texture")
-        col.label(text = "Generated texture path: \"texture/"+ob.active_material.BF1942_sm_Properties.texture+"\"")
         
         col.prop(ob.active_material.BF1942_sm_Properties, "lighting")
         dif_box = LOD_box.box()
@@ -850,8 +849,6 @@ class BF1942_PT_material(Panel):
         col = LOD_box.column(align=True)
         col.prop(ob.active_material.BF1942_sm_Properties, "textureFade")
         col.prop(ob.active_material.BF1942_sm_Properties, "alphaTestRef")
-        # col.prop(ob.active_material.BF1942_sm_Properties, "useCustomTexturePath")
-        # col.prop(ob.active_material.BF1942_sm_Properties, "customTexturePath")
 
 
 
@@ -969,14 +966,6 @@ class BF1942_sm_Properties(PropertyGroup):
         name="materialSpecularPower",
         default = 12.5,
         min = 0
-    )
-    useCustomTexturePath : BoolProperty(
-        name="useCustomTexturePath",
-        default=False
-    )
-    customTexturePath : StringProperty(
-        name="customTexturePath",
-        default = "",
     )
     #for collision mesh:
     MaterialID : IntProperty(

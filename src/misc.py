@@ -70,21 +70,46 @@ def bf42_getCollectionByName(name,parentCollection = None, onlyCheckIfExists = F
         parentCollection.children.link(collection)
     return(collection)
 
-def bf42_getTextureDirs():
-    # ToDo: relative paths: ../../bf1942/levels/Floating_Archipelago/menu/serverInfo.dds
+def bf42_getTexturePathByName(RelativeTexturePath):
+    # texturepath info: "texture/buildings/house1" => TextureBaseDir = "texture", TextureName = "house1", RelativeTexturePath_sub = "buildings/house1"
+    # if baseDir is in "texture" and alternativePaths
+        # first check if name (not path) is in an alternativePath(from first to last mentioned)
+        # if baseDir == "texture"
+            # then check if filePath is in texture.rfa
+        # for alt path (from first to last mentioned)
+            # if baseDir == alternativePaths.name
+                # then check if filePath is in alternativePaths["xxx"]
+    # check in game-base dir
+    
+    TextureBaseDir = RelativeTexturePath.split("/")[0]
+    TextureName = RelativeTexturePath.split("/").pop()
+    RelativeTexturePath_sub = RelativeTexturePath.split("/",1).pop()
+    
     BF1942Settings = bpy.context.scene.BF1942Settings
-    base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
+    base_path = bpy.path.abspath(BF1942Settings.ImportConDir) # absolute paths: bf1942/levels/GC_Mos_Eisley/textures/tat_wood_1 (in rs)
     TextureDirList = loads(BF1942Settings.TextureDirList)
-    TextureDirList = [os.path.join(base_path, dir) for dir in TextureDirList] if TextureDirList != None else [] # textureManager.alternativePath bf1942/Levels/Liberation_of_Caen/Texture
-    TextureDirList.append(os.path.join(base_path,"texture"))
-    TextureDirList.append(base_path) # absolute paths: bf1942/levels/GC_Mos_Eisley/textures/tat_wood_1 (in rs)
-    TextureDirList.insert(0,bpy.path.abspath(BF1942Settings.TextureDirectory))
-    return(TextureDirList)
-
-def bf42_getTexturePathByName(textureName):
-    for dir in bf42_getTextureDirs():
-        for ext in ['.dds','.tga']:
-            texture_path = os.path.join(dir,textureName+ext)
+    alternativePaths = [(os.path.join(base_path, dir), dir.rstrip('/').split("/").pop()) for dir in TextureDirList] if TextureDirList != None else [] # textureManager.alternativePath bf1942/Levels/Liberation_of_Caen/Texture
+    texturePath = os.path.join(base_path,"texture")
+    
+    alternativePathNames = [altPathName for (altPath, altPathName) in alternativePaths]
+    
+    for ext in ['.dds','.tga']:
+        if TextureBaseDir in ["texture"]+alternativePathNames:
+            for (altPath, altPathName) in alternativePaths:
+                texture_path = os.path.join(altPath,TextureName+ext)
+                if os.path.isfile(texture_path):
+                    return(texture_path)
+            if TextureBaseDir == "texture":
+                texture_path = os.path.join(texturePath,RelativeTexturePath_sub+ext)
+                if os.path.isfile(texture_path):
+                    return(texture_path)
+            for (altPath, altPathName) in alternativePaths:
+                if altPathName == TextureBaseDir:
+                    texture_path = os.path.join(altPath,RelativeTexturePath_sub+ext)
+                    if os.path.isfile(texture_path):
+                        return(texture_path)
+        else:
+            texture_path = os.path.join(base_path,RelativeTexturePath+ext)
             if os.path.isfile(texture_path):
                 return(texture_path)
     return(None)

@@ -319,10 +319,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                     object = bf42_createTreeMesh(geometries.vertexValues,faceSection, filePath, '_Branch_'+str(j+1))
                     object.scale = (sceneScale,sceneScale,sceneScale)
                     rs_matterial = bf42_material("")
-                    texture_split = mesh.textureName.split('/',1)
-                    if len(texture_split) == 2:
-                        rs_matterial.texture = texture_split[1]
-                    rs_matterial.textureFullPath = mesh.textureName
+                    rs_matterial.texture = mesh.textureName
                     rs_matterial.twosided = True
                     rs_matterial.transparent = True
                     mat = bf42_add_sm_Material(object.data, rs_matterial, fileName+'_Branch_'+str(j+1))
@@ -347,10 +344,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 object = bf42_createTreeMesh(geometries.vertexValues,mesh.faces, filePath, '_Trunk_'+str(j+1))
                 object.scale = (sceneScale,sceneScale,sceneScale)
                 rs_matterial = bf42_material("")
-                texture_split = mesh.textureName.split('/',1)
-                if len(texture_split) == 2:
-                    rs_matterial.texture = texture_split[1]
-                rs_matterial.textureFullPath = mesh.textureName
+                rs_matterial.texture = mesh.textureName
                 rs_matterial.twosided = True
                 rs_matterial.transparent = True
                 mat = bf42_add_sm_Material(object.data, rs_matterial, fileName+'_Trunk_'+str(j+1))
@@ -402,10 +396,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                     object = bf42_createTreeMesh(spriteVertices,faceSection, filePath, '_Sprite_'+str(j+1))
                     object.scale = (sceneScale,sceneScale,sceneScale)
                     rs_matterial = bf42_material("")
-                    texture_split = mesh.textureName.split('/',1)
-                    if len(texture_split) == 2:
-                        rs_matterial.texture = texture_split[1]
-                    rs_matterial.textureFullPath = mesh.textureName
+                    rs_matterial.texture = mesh.textureName
                     rs_matterial.twosided = True
                     rs_matterial.transparent = True
                     mat = bf42_add_sm_Material(object.data, rs_matterial, fileName+'_Sprite_'+str(j+1))
@@ -499,7 +490,7 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
                                 materialFaces.append((face[0],face[2],face[1])) # correct for normal
                         if len(materialFaces) > 0:
                             faces.append(materialFaces)
-                            textureNames.append("texture/"+material.BF1942_sm_Properties.texture)
+                            textureNames.append(material.BF1942_sm_Properties.texture)
                     bpy.data.objects.remove(object)
                 allTextureNames.append(textureNames)
                 allVertices.append(vertices)

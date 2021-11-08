@@ -290,7 +290,6 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
     mat.use_nodes = True;
     
     mat.BF1942_sm_Properties.texture = rs_matterial.texture
-    mat.BF1942_sm_Properties.customTexturePath = rs_matterial.textureFullPath
     mat.BF1942_sm_Properties.transparent = rs_matterial.transparent
     mat.BF1942_sm_Properties.lighting = rs_matterial.lighting
     mat.BF1942_sm_Properties.lightingSpecular = rs_matterial.lightingSpecular
@@ -398,10 +397,7 @@ class bf42_materials:
                                     if len(property_value_list) == 3:
                                         material.__setattr__(property_name, property_value_list)
                             elif property_name == "texture":
-                                texture_split = property_value.split('/',1)
-                                if len(texture_split) == 2:
-                                    material.texture = texture_split[1][0:-1]
-                                material.textureFullPath = property_value[1:-1]
+                                material.texture = property_value[1:-1]
                             else:
                                 material.__setattr__(property_name, property_value)
                 self.material_list.append(material)
@@ -415,7 +411,6 @@ class bf42_material:
     def __init__(self,name):
         self.name = name
         self.texture = ""
-        self.textureFullPath = ""
         self.transparent = False
         self.lighting = True
         self.lightingSpecular = False
@@ -440,7 +435,7 @@ def write_rs_file(path,RS_materials):
         for matNR, mat in enumerate(RS_materials):
             f.write("subshader \"material_"+str(matNR)+"\" \"StandardMesh/Default\"\n{\n")
             if mat.texture != "":
-                f.write("\ttexture \"texture/"+mat.texture+"\";\n")
+                f.write("\ttexture \""+mat.texture+"\";\n")
             if mat.transparent != defaultMat.transparent:
                 f.write("\ttransparent "+bool2str(mat.transparent)+";\n")
             if mat.lighting != defaultMat.lighting:
@@ -620,7 +615,6 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
     for materialNumber, material in enumerate(mesh.materials):
         RS_material = bf42_material("material_"+str(materialNumber))
         RS_material.texture = material.BF1942_sm_Properties.texture
-        RS_material.textureFullPath = material.BF1942_sm_Properties.customTexturePath
         RS_material.transparent = material.BF1942_sm_Properties.transparent
         RS_material.lighting = material.BF1942_sm_Properties.lighting
         RS_material.lightingSpecular = material.BF1942_sm_Properties.lightingSpecular
