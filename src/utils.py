@@ -354,10 +354,7 @@ class BF1942_ImportStaticObjects(Operator):
         wm = bpy.context.window_manager
         wm.progress_begin(0, len(data.staticObjects))
         for i, object in enumerate(data.staticObjects):
-            if bf42_is_linked(object.template):
-                bf42_placeObject(object.template, sceneScale, base_path, level, data, object.absolutePosition, object.rotation, loadFarLOD)
-            else:
-                print("Error: "+object.template+" objectTemplate does not exist!!")
+            bf42_placeObject(object.template, sceneScale, base_path, level, data, object.absolutePosition, object.rotation, loadFarLOD)
             wm.progress_update(i)
         wm.progress_end()
         bf42_hide_bf42_multi_mesh_objects()

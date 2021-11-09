@@ -81,6 +81,7 @@ def bf42_getTexturePathByName(RelativeTexturePath):
                 # then check if filePath is in alternativePaths["xxx"]
     # check in game-base dir
     
+    RelativeTexturePath = RelativeTexturePath.strip("/")
     TextureBaseDir = RelativeTexturePath.split("/")[0]
     TextureName = RelativeTexturePath.split("/").pop()
     RelativeTexturePath_sub = RelativeTexturePath.split("/",1).pop()
@@ -94,11 +95,12 @@ def bf42_getTexturePathByName(RelativeTexturePath):
     alternativePathNames = [altPathName for (altPath, altPathName) in alternativePaths]
     
     for ext in ['.dds','.tga']:
+        # this overwrite should actially only occur when the texture exists in the 'correct' location. But for performance I do it this way
+        for (altPath, altPathName) in alternativePaths:
+            texture_path = os.path.join(altPath,TextureName+ext)
+            if os.path.isfile(texture_path):
+                return(texture_path)
         if TextureBaseDir in ["texture"]+alternativePathNames:
-            for (altPath, altPathName) in alternativePaths:
-                texture_path = os.path.join(altPath,TextureName+ext)
-                if os.path.isfile(texture_path):
-                    return(texture_path)
             if TextureBaseDir == "texture":
                 texture_path = os.path.join(texturePath,RelativeTexturePath_sub+ext)
                 if os.path.isfile(texture_path):
@@ -126,13 +128,13 @@ def bf42_getMeshPath(geometryTemplate):
             folderName = "treeMesh"
             ext = ".tm"
         directory = os.path.join(base_path,folderName)
-        mesh_path = os.path.join(directory,geometryTemplate.file+ext)
+        mesh_path = os.path.join(directory,geometryTemplate.file.strip("/")+ext)
         if os.path.isfile(mesh_path):
             rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
             return((mesh_path,rel_path))
         if level != "":
             directory = os.path.join(base_path,"Bf1942\\Levels\\"+level+"\\"+folderName)
-            mesh_path = os.path.join(directory,geometryTemplate.file+ext)
+            mesh_path = os.path.join(directory,geometryTemplate.file.strip("/")+ext)
             if os.path.isfile(mesh_path):
                 rel_path = os.path.splitext(os.path.relpath(mesh_path,directory).replace("\\","/"))[0]
                 return((mesh_path,rel_path))

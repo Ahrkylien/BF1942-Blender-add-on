@@ -3,6 +3,7 @@ import struct
 import bpy
 from random import random
 from mathutils import Matrix
+from math import isclose
 
 from .misc import *
 
@@ -284,50 +285,76 @@ class sm_LOD_mesh_material:
         return(self)
 #############################################################
 
-def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material"):
-    mat = bpy.data.materials.new(name)
-    mat.diffuse_color = random(), random(), random(), 1
-    mat.use_nodes = True;
-    
-    mat.BF1942_sm_Properties.texture = rs_matterial.texture
-    mat.BF1942_sm_Properties.transparent = rs_matterial.transparent
-    mat.BF1942_sm_Properties.lighting = rs_matterial.lighting
-    mat.BF1942_sm_Properties.lightingSpecular = rs_matterial.lightingSpecular
-    mat.BF1942_sm_Properties.twosided = rs_matterial.twosided
-    mat.BF1942_sm_Properties.envmap = rs_matterial.envmap
-    mat.BF1942_sm_Properties.textureFade = rs_matterial.textureFade
-    mat.BF1942_sm_Properties.depthWrite = rs_matterial.depthWrite
-    mat.BF1942_sm_Properties.blendSrc = rs_matterial.blendSrc
-    mat.BF1942_sm_Properties.blendDest = rs_matterial.blendDest
-    mat.BF1942_sm_Properties.alphaTestRef = rs_matterial.alphaTestRef
-    mat.BF1942_sm_Properties.materialDiffuse = rs_matterial.materialDiffuse
-    mat.BF1942_sm_Properties.materialSpecular = rs_matterial.materialSpecular
-    mat.BF1942_sm_Properties.materialSpecularPower = rs_matterial.materialSpecularPower
-    if rs_matterial.transparent:
-        mat.blend_method = 'HASHED'
-    if rs_matterial.textureFade:
-        mat.blend_method = 'HASHED'
-    mat.use_backface_culling = not rs_matterial.twosided
+def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material", mergeSameMaterials = True):
+    sameMaterialFound = False
+    if mergeSameMaterials:
+        for mat in bpy.data.materials:
+            bf42_mat = mat.BF1942_sm_Properties
+            if (bf42_mat.texture == rs_matterial.texture and
+                bf42_mat.transparent == rs_matterial.transparent and
+                bf42_mat.lighting == rs_matterial.lighting and
+                bf42_mat.lightingSpecular == rs_matterial.lightingSpecular and
+                bf42_mat.twosided == rs_matterial.twosided and
+                bf42_mat.envmap == rs_matterial.envmap and
+                bf42_mat.textureFade == rs_matterial.textureFade and
+                bf42_mat.depthWrite == rs_matterial.depthWrite and
+                bf42_mat.blendSrc == rs_matterial.blendSrc and
+                bf42_mat.blendDest == rs_matterial.blendDest and
+                bf42_mat.alphaTestRef == rs_matterial.alphaTestRef and
+                isclose(bf42_mat.alphaTestRef, rs_matterial.alphaTestRef, rel_tol=1e-5) and
+                isclose(bf42_mat.materialDiffuse[0], rs_matterial.materialDiffuse[0], rel_tol=1e-5) and
+                isclose(bf42_mat.materialDiffuse[1], rs_matterial.materialDiffuse[1], rel_tol=1e-5) and
+                isclose(bf42_mat.materialDiffuse[2], rs_matterial.materialDiffuse[2], rel_tol=1e-5) and
+                isclose(bf42_mat.materialSpecular[0], rs_matterial.materialSpecular[0], rel_tol=1e-5) and
+                isclose(bf42_mat.materialSpecular[1], rs_matterial.materialSpecular[1], rel_tol=1e-5) and
+                isclose(bf42_mat.materialSpecular[2], rs_matterial.materialSpecular[2], rel_tol=1e-5) and
+                isclose(bf42_mat.materialSpecularPower, rs_matterial.materialSpecularPower, rel_tol=1e-5)):
+                sameMaterialFound = True
+                break
+    if not sameMaterialFound:
+        mat = bpy.data.materials.new(name)
+        mat.diffuse_color = random(), random(), random(), 1
+        mat.use_nodes = True;
+        
+        mat.BF1942_sm_Properties.texture = rs_matterial.texture
+        mat.BF1942_sm_Properties.transparent = rs_matterial.transparent
+        mat.BF1942_sm_Properties.lighting = rs_matterial.lighting
+        mat.BF1942_sm_Properties.lightingSpecular = rs_matterial.lightingSpecular
+        mat.BF1942_sm_Properties.twosided = rs_matterial.twosided
+        mat.BF1942_sm_Properties.envmap = rs_matterial.envmap
+        mat.BF1942_sm_Properties.textureFade = rs_matterial.textureFade
+        mat.BF1942_sm_Properties.depthWrite = rs_matterial.depthWrite
+        mat.BF1942_sm_Properties.blendSrc = rs_matterial.blendSrc
+        mat.BF1942_sm_Properties.blendDest = rs_matterial.blendDest
+        mat.BF1942_sm_Properties.alphaTestRef = rs_matterial.alphaTestRef
+        mat.BF1942_sm_Properties.materialDiffuse = rs_matterial.materialDiffuse
+        mat.BF1942_sm_Properties.materialSpecular = rs_matterial.materialSpecular
+        mat.BF1942_sm_Properties.materialSpecularPower = rs_matterial.materialSpecularPower
+        if rs_matterial.transparent:
+            mat.blend_method = 'HASHED'
+        if rs_matterial.textureFade:
+            mat.blend_method = 'HASHED'
+        mat.use_backface_culling = not rs_matterial.twosided
 
-    nodes = mat.node_tree.nodes
-    node_output = nodes.get("Material Output")
-    node_principled = nodes.get("Principled BSDF")
-#    node_diffuse = nodes.new(type="ShaderNodeBsdfDiffuse")
-    node_texture = nodes.new(type="ShaderNodeTexImage")
-    node_texture.location = (-335, 215.0)
-    node_UVMap_texture = nodes.new(type="ShaderNodeUVMap")
-    node_UVMap_texture.location = (-530, 60)
-    node_UVMap_texture.uv_map = "textureMap"
-    links = mat.node_tree.links
-    FILE_PATH = bf42_getTexturePathByName(rs_matterial.texture)
-    if FILE_PATH != None:
-        image = bpy.data.images.load(FILE_PATH, check_existing=True)
-        node_texture.image = image
-        new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
-    else:
-        print("texture not found: "+rs_matterial.texture)
-    new_link = links.new(node_UVMap_texture.outputs[0],node_texture.inputs[0])
-    new_link = links.new(node_texture.outputs[0],node_principled.inputs[0])
+        nodes = mat.node_tree.nodes
+        node_output = nodes.get("Material Output")
+        node_principled = nodes.get("Principled BSDF")
+    #    node_diffuse = nodes.new(type="ShaderNodeBsdfDiffuse")
+        node_texture = nodes.new(type="ShaderNodeTexImage")
+        node_texture.location = (-335, 215.0)
+        node_UVMap_texture = nodes.new(type="ShaderNodeUVMap")
+        node_UVMap_texture.location = (-530, 60)
+        node_UVMap_texture.uv_map = "textureMap"
+        links = mat.node_tree.links
+        FILE_PATH = bf42_getTexturePathByName(rs_matterial.texture)
+        if FILE_PATH != None:
+            image = bpy.data.images.load(FILE_PATH, check_existing=True)
+            node_texture.image = image
+            new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
+        else:
+            print("texture not found: "+rs_matterial.texture)
+        new_link = links.new(node_UVMap_texture.outputs[0],node_texture.inputs[0])
+        new_link = links.new(node_texture.outputs[0],node_principled.inputs[0])
     mesh.materials.append(mat)
     return(mat)
     
@@ -424,6 +451,7 @@ class bf42_material:
         self.materialDiffuse = (1,1,1)
         self.materialSpecular = (1,1,1)
         self.materialSpecularPower = 20
+    
 
 def bool2str(bool):
     return("true" if bool else "false")
@@ -484,7 +512,6 @@ def bf42_addMaterialID_Material(mesh, materialID):
 def remake_sm_BSP(path,depth='-a'):
     BSP_path = os.path.normpath(os.path.join(__file__,"../../bin/makeBSP.exe"))
     cmd = '"'+BSP_path+'" "'+path+'" '+depth+''
-#    print(cmd)
     p = os.popen(cmd)
 #    print(p.read())
     p.close()
