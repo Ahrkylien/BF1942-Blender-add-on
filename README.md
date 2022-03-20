@@ -29,11 +29,12 @@ The add-on is still in a very early stage.
 - Heightmap import/export:
 	- add support for materialSize and worldSize
 - .sm import:
+	- add Limited Disolve option
 	- Tris to Quads option (Compare UVs)
+	- let LODs share the same Material, option
 	- correct vertex normals (COL)
 	- correct face normals (LOD)
 	- research matterial settings inside .sm (LOD), this really needs to be done to fix some weird alpha blending
-	- let LODs share the same Material
 	- add posibility too share Materials (with same properties) between different Objects
 - .sm export:
 	- LOD generation
@@ -45,7 +46,9 @@ The add-on is still in a very early stage.
 		``
 	- Shadow LOD seperate faces (check if its needed, Dice Shadow meshes have this)
 -	.tm import:
+	- add Limited Disolve option
 	- Tris to Quads option (Compare UVs)
+	- let LODs share the same Material, option
 -	.tm export:
 	- order branches per angle on distance
 	- the normal of the sprites doesnt matter but the export flips something randomly. This causes the Import of the flipped export the flip the normals (in bf42 the normals are not fliped).

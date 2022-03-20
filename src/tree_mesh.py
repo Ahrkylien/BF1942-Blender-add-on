@@ -153,7 +153,7 @@ class tm_sprites_material_mesh:
         self.sprites = []
     def loadObject(self,spriteMaterial):
         material = spriteMaterial.data.materials[0]
-        self.texturename = "texture/"+material.BF1942_sm_Properties.texture
+        self.texturename = material.BF1942_sm_Properties.texture
         bpy.ops.object.select_all(action='DESELECT')
         spriteMaterial.select_set(True)
         bpy.context.view_layer.objects.active = spriteMaterial
@@ -231,7 +231,7 @@ class tm_sprite:
         return(self)
 
 
-def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, add_Visible, merge_shared_verticies, sceneScale, name = None):
+def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, add_Visible, merge_shared_verticies, tris_to_quads, sceneScale, name = None):
     path = bpy.path.abspath(path)
     try:
         f = open(path, 'rb')
@@ -244,7 +244,7 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
             filePath = os.path.splitext(bpy.path.basename(path))[0]
         else:
             filePath = name
-        fileName = filePath.split("/").pop()
+        fileName = filePath.replace("\\", "/").split("/").pop()
         
         f.seek(0,2)
         fileSize = f.tell()
@@ -335,6 +335,8 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 bpy.ops.object.editmode_toggle()
                 if merge_shared_verticies:
                     bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                if tris_to_quads:
+                    bpy.ops.mesh.tris_convert_to_quads(face_threshold=0.00174533, shape_threshold=3.142, uvs=True)
                 bpy.ops.mesh.delete_loose()
                 bpy.ops.object.editmode_toggle()
                 bpy.ops.object.select_all(action='DESELECT')
@@ -360,6 +362,8 @@ def bf42_import_tm(path, add_BoundingBox, add_BoundingBoxLeaves, add_Collision, 
                 bpy.ops.object.editmode_toggle()
                 if merge_shared_verticies:
                     bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                if tris_to_quads:
+                    bpy.ops.mesh.tris_convert_to_quads(face_threshold=0.00174533, shape_threshold=3.142, uvs=True)
                 bpy.ops.mesh.delete_loose()
                 bpy.ops.object.editmode_toggle()
                 bpy.ops.object.select_all(action='DESELECT')

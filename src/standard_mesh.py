@@ -334,7 +334,7 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material", mergeSameMa
             mat.blend_method = 'HASHED'
         if rs_matterial.textureFade:
             mat.blend_method = 'HASHED'
-        mat.use_backface_culling = not rs_matterial.twosided
+        # mat.use_backface_culling = not rs_matterial.twosided
 
         nodes = mat.node_tree.nodes
         node_output = nodes.get("Material Output")
@@ -601,13 +601,23 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
     
     bpy.data.objects.remove(object)
 
-def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
+def sm_LOD_export(f, object, applyTrans, smoothShadingMode, sceneScale, addLightMapUV=False):
     object = bf42_duplicateSpecialObject(object)
     if applyTrans:
         bf42_applyTransformObject(object)
     object.data.transform(Matrix.Scale(1/sceneScale, 4))
-    mesh = object.data
+    if smoothShadingMode == "Sharp Marked Edges":
+        bf42_splitSharpMarkedEdges(object)
+    elif smoothShadingMode == "Generate":
+        bf42_removeSharpMarkedEdges(object)
+        bf42_generateSharpMarkedEdges(object)
+        bf42_splitSharpMarkedEdges(object)
+        pass
+    elif smoothShadingMode == "Both":
+        bf42_generateSharpMarkedEdges(object)
+        bf42_splitSharpMarkedEdges(object)
     
+    mesh = object.data
     RS_materials = []
     
     light_uv_layer = None
@@ -672,18 +682,16 @@ def sm_LOD_export(f, object, applyTrans, sceneScale, addLightMapUV=False):
                         vertexTextureUVco = (0,0)
                     else:
                         vertexTextureUVco = (texutre_uv_layer.data[loop_index].uv[0],1-texutre_uv_layer.data[loop_index].uv[1])
-                    if light_uv_layer == None:
-                        vertexLightmapUVco = (0,0)
-                    else:
+                    if addLightMapUV:
                         vertexLightmapUVco = (light_uv_layer.data[loop_index].uv[0],1-light_uv_layer.data[loop_index].uv[1])
-                    ref = (vertex.co, vertexTextureUVco, vertexLightmapUVco)
+                    ref = (vertex_index, vertexTextureUVco, (vertexLightmapUVco if addLightMapUV else None))
                     try:
                         vertices_ref_index = vertices_ref.index(ref)
                     except ValueError:
                         vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
                         vertexNormals.append(tuple(vertex.normal))
                         vertexTextureUV.append(vertexTextureUVco)
-                        if not light_uv_layer == None and addLightMapUV:
+                        if addLightMapUV:
                             vertexLightmapUV.append(vertexLightmapUVco)
                         vertices_ref.append(ref)
                         vertices_ref_index = len(vertices_ref)-1
@@ -812,12 +820,12 @@ def bf42_import_sm_debug(path):
             print("Error, Data left at end: "+str(f.tell())+" -> "+str(fileSize)+" : "+str(fileSize-f.tell()))
         f.close()
 
-def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, sceneScale, name = None):
+def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, face_merge_mode, sceneScale, name = None):
     if name == None:
         filePath = os.path.splitext(bpy.path.basename(path))[0]
     else:
         filePath = name
-    fileName = filePath.split("/").pop()
+    fileName = filePath.replace("\\", "/").split("/").pop()
     
     path_rs = os.path.splitext(path)[0]+".rs"
     path_sm = os.path.splitext(path)[0]+".sm"
@@ -882,7 +890,7 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
         if add_only_main_LOD: numLodsToPars = min(numLods,1)
         if not add_Visible: numLodsToPars = 0
         for LodNumber in range(numLodsToPars):
-            bpy.ops.object.select_all(action='DESELECT')
+            LOD_objects_to_merge = []
             LOD_mesh = sm_LOD_mesh().read(f)
             for materialNumber, material in enumerate(LOD_mesh.materials):
                 rs_matterial = rs_materials.get_material(material.name)
@@ -900,6 +908,12 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                     texutre_uv_layer.data[loop.index].uv = (material.vertexTextureUV[loop.vertex_index][0],1-material.vertexTextureUV[loop.vertex_index][1])
                     if material.vertexByteSize in [40]:
                         light_uv_layer.data[loop.index].uv = (material.vertexLightmapUV[loop.vertex_index][0],1-material.vertexLightmapUV[loop.vertex_index][1])
+                LOD_objects_to_merge.append(object)
+                if merge_shared_verticies:
+                    bf42_mergeEdgesAndMarkSharp(object)
+            
+            bpy.ops.object.select_all(action='DESELECT')
+            for object in LOD_objects_to_merge:
                 object.select_set(True)
                 bpy.context.view_layer.objects.active = object
             
@@ -909,7 +923,17 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                 object.data.name = fileName+'_LOD'+str(LodNumber+1)
                 if merge_shared_verticies:
                     bpy.ops.object.editmode_toggle()
-                    bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                    bpy.ops.mesh.remove_doubles(threshold=0.0001, use_unselected=True)
+                    bpy.ops.object.editmode_toggle()
+                if face_merge_mode == "Tris to Quads":
+                    bpy.ops.object.editmode_toggle()
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.mesh.tris_convert_to_quads(face_threshold=0.002, shape_threshold=3.142, uvs=True, sharp=True)
+                    bpy.ops.object.editmode_toggle()
+                if face_merge_mode == "Tris to Ngons":
+                    bpy.ops.object.editmode_toggle()
+                    bpy.ops.mesh.select_all(action='SELECT')
+                    bpy.ops.mesh.dissolve_limited(angle_limit=0.002, delimit={'MATERIAL', 'SHARP', 'UV'})
                     bpy.ops.object.editmode_toggle()
                 bpy.ops.object.select_all(action='DESELECT')
         if add_Shadow:
@@ -928,13 +952,19 @@ def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_m
                             object.scale = (sceneScale,sceneScale,sceneScale)
                         bpy.context.view_layer.objects.active = object
                         if merge_shared_verticies:
+                            bf42_mergeEdgesAndMarkSharp(object)
+                        if face_merge_mode == "Tris to Quads":
                             bpy.ops.object.editmode_toggle()
-                            bpy.ops.mesh.remove_doubles(threshold=0.0000, use_unselected=True)
+                            bpy.ops.mesh.tris_convert_to_quads(face_threshold=0.002, shape_threshold=3.142, uvs=True, sharp=True)
+                            bpy.ops.object.editmode_toggle()
+                        if face_merge_mode == "Tris to Ngons":
+                            bpy.ops.object.editmode_toggle()
+                            bpy.ops.mesh.dissolve_limited(angle_limit=0.002, delimit={'MATERIAL', 'SHARP', 'UV'})
                             bpy.ops.object.editmode_toggle()
                         bpy.ops.object.select_all(action='DESELECT')
         f.close()
 
-def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, generateUV, sceneScale):
+def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, smoothShadingMode, generateUV, sceneScale):
     print("########### start Export #######")
     directory = bpy.path.abspath(directory)
     if os.path.exists(directory) and name != "":
@@ -996,7 +1026,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
             #LODs
             sm_i_w(f, len(LOD_objects))
             for LOD_Number, LOD_object in enumerate(LOD_objects):
-                RS_materials = sm_LOD_export(f, LOD_object, applyTrans, sceneScale, generateUV)
+                RS_materials = sm_LOD_export(f, LOD_object, applyTrans, smoothShadingMode, sceneScale, generateUV)
                 if LOD_Number == 0:
                     write_rs_file(path_rs,RS_materials)
             

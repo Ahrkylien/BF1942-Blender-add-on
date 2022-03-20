@@ -12,6 +12,16 @@ def dumps(objectToDump):
 def loads(stringToLoad):
     return(pickle.loads(bytes.fromhex(stringToLoad)))
 
+class StoreActiveAndSelectedObjects():
+    def __init__(self, deselectAll = True):
+        self.selected = bpy.context.selected_objects.copy()
+        self.active = bpy.context.view_layer.objects.active
+        if deselectAll:
+            bpy.ops.object.select_all(action='DESELECT')
+    def release(self):
+        for object in self.selected:
+            object.select_set(True)
+        bpy.context.view_layer.objects.active = self.active
 
 popupMessages = []
 def draw_popupMessage(self, context):
@@ -87,6 +97,7 @@ def bf42_getTexturePathByName(RelativeTexturePath):
     RelativeTexturePath_sub = RelativeTexturePath.split("/",1).pop()
     
     BF1942Settings = bpy.context.scene.BF1942Settings
+    customDir = bpy.path.abspath(BF1942Settings.TextureDirectory) # absolute paths: bf1942/levels/GC_Mos_Eisley/textures/tat_wood_1 (in rs)
     base_path = bpy.path.abspath(BF1942Settings.ImportConDir) # absolute paths: bf1942/levels/GC_Mos_Eisley/textures/tat_wood_1 (in rs)
     TextureDirList = loads(BF1942Settings.TextureDirList)
     alternativePaths = [(os.path.join(base_path, dir), dir.rstrip('/').split("/").pop()) for dir in TextureDirList] if TextureDirList != None else [] # textureManager.alternativePath bf1942/Levels/Liberation_of_Caen/Texture
@@ -114,6 +125,11 @@ def bf42_getTexturePathByName(RelativeTexturePath):
             texture_path = os.path.join(base_path,RelativeTexturePath+ext)
             if os.path.isfile(texture_path):
                 return(texture_path)
+    # custom directory:
+    for ext in ['.dds','.tga']:
+        texture_path = os.path.join(customDir,RelativeTexturePath_sub+ext)
+        if os.path.isfile(texture_path):
+            return(texture_path)
     return(None)
 
 def bf42_getMeshPath(geometryTemplate):
@@ -163,13 +179,63 @@ def bf42_applyTransformObject(object):
 
 def bf42_triangulateObject(object):
     modifier = object.modifiers.new("tmp", "TRIANGULATE")
-    old_active = bpy.context.view_layer.objects.active
+    modifier.quad_method = 'BEAUTY'
+    activeAndSelectedObjects = StoreActiveAndSelectedObjects()
     bpy.context.view_layer.objects.active = object
     if bpy.app.version >= (2, 91, 0):
         bpy.ops.object.modifier_apply(modifier="tmp")
     else:
         bpy.ops.object.modifier_apply(apply_as='DATA', modifier="tmp")
-    bpy.context.view_layer.objects.active = old_active
+    activeAndSelectedObjects.release()
+
+def bf42_mergeEdgesAndMarkSharp(object):
+    activeAndSelectedObjects = StoreActiveAndSelectedObjects()
+    bpy.context.view_layer.objects.active = object
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_mode(type="EDGE")
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.mesh.select_non_manifold(extend=False, use_wire=False, use_multi_face=False, use_non_contiguous=False, use_verts=False)
+    bpy.ops.mesh.mark_sharp()
+    bpy.ops.mesh.remove_doubles(threshold=0.0001, use_unselected=True)
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.mesh.select_non_manifold(extend=False, use_wire=False, use_multi_face=False, use_non_contiguous=False, use_verts=False)
+    bpy.ops.mesh.mark_sharp(clear=True)
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.object.editmode_toggle()
+    activeAndSelectedObjects.release()
+
+def bf42_removeSharpMarkedEdges(object): #this just removes the mark, not the egde
+    # for edge in object.data.edges:
+        # edge.use_edge_sharp = False #this is needed since it doesnt get updated during script time
+    activeAndSelectedObjects = StoreActiveAndSelectedObjects()
+    bpy.context.view_layer.objects.active = object
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_all(action='SELECT')
+    bpy.ops.mesh.mark_sharp(clear=True)
+    bpy.ops.object.editmode_toggle()
+    activeAndSelectedObjects.release()
+
+def bf42_generateSharpMarkedEdges(object):
+    activeAndSelectedObjects = StoreActiveAndSelectedObjects()
+    bpy.context.view_layer.objects.active = object
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_mode(type="EDGE")
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bpy.ops.mesh.edges_select_sharp(sharpness=0.649262)
+    bpy.ops.mesh.mark_sharp()
+    bpy.ops.object.editmode_toggle()
+    activeAndSelectedObjects.release()
+
+def bf42_splitSharpMarkedEdges(object):
+    for edge in object.data.edges:
+        edge.select = edge.use_edge_sharp
+    activeAndSelectedObjects = StoreActiveAndSelectedObjects()
+    bpy.context.view_layer.objects.active = object
+    bpy.ops.object.editmode_toggle()
+    bpy.ops.mesh.select_mode(type="EDGE")
+    bpy.ops.mesh.edge_split()
+    bpy.ops.object.editmode_toggle()
+    activeAndSelectedObjects.release()
 
 def bf42_toggle_hide_layer_collection(name="", exclude=True):
     for layer_collection in bpy.context.view_layer.layer_collection.children:

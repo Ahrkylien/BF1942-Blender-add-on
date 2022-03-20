@@ -43,7 +43,7 @@ def bf42_importGeometry(geometryTemplate, base_path, level, bf42_data, sceneScal
             mesh_path, rel_path = bf42_getMeshPath(geometryTemplate)
             if mesh_path != None:
                 if geometryTemplate.type in ["standardmesh", "animatedmesh"]:
-                    bf42_import_sm(mesh_path, False, False, True, True, False, True, sceneScale, rel_path)
+                    bf42_import_sm(mesh_path, False, False, True, True, False, True, "Tris to Ngons", sceneScale, rel_path)
                 elif geometryTemplate.type == "treemesh":
-                    bf42_import_tm(mesh_path, False, False, False, True, True, sceneScale, rel_path)
+                    bf42_import_tm(mesh_path, False, False, False, True, True, "Tris to Ngons", sceneScale, rel_path)
     return(bf42_getGeometryTemplateMeshes(geometryTemplate))

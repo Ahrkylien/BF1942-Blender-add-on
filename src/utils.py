@@ -3,7 +3,7 @@ from bpy.props import BoolProperty, FloatProperty, IntProperty, PointerProperty,
 from bpy.types import Operator, Panel, PropertyGroup, AddonPreferences
 from bpy_extras.view3d_utils import region_2d_to_origin_3d, region_2d_to_vector_3d, region_2d_to_location_3d
 import os
-from math import pi
+from math import pi, log2
 
 from .heightmap import bf42_heightmap
 from .standard_mesh import bf42_import_sm, bf42_export_sm
@@ -12,6 +12,7 @@ from .bf42_script import *
 from .light_map import light_map_export
 from .place_object import bf42_placeObject
 from .import_geometry import bf42_importGeometry
+from .texture_conversion import *
 from .misc import *
 
 
@@ -61,6 +62,50 @@ class BF1942_ExportHeightMap(Operator):
                 else:
                     BF1942Settings.HeightmapObject = None
         return {'FINISHED'}
+class BF1942_ImportSM(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importsm"
+    bl_label = "Import BF1942 Standard Mesh"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        path = bpy.path.abspath(BF1942Settings.ImportSMFile)
+        add_BoundingBox = BF1942Settings.BoundingBox
+        add_Collision = BF1942Settings.Collision
+        add_Visible = BF1942Settings.Visible
+        add_only_main_LOD = BF1942Settings.OnlyMainLOD
+        add_Shadow = BF1942Settings.Shadow
+        merge_shared_verticies = BF1942Settings.Merge_shared_verticies
+        face_merge_mode = BF1942Settings.ImportSMFaceMergeMode
+        sceneScale = BF1942Settings.sceneScale
+        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, face_merge_mode, sceneScale)
+        return {'FINISHED'}
+class BF1942_ImportSM_Batch(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importsm_batch"
+    bl_label = "Import BF1942 Standard Mesh Batch"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        dir = bpy.path.abspath(BF1942Settings.ImportSMDir)
+        add_BoundingBox = BF1942Settings.BoundingBox
+        add_Collision = BF1942Settings.Collision
+        add_Visible = BF1942Settings.Visible
+        add_only_main_LOD = BF1942Settings.OnlyMainLOD
+        add_Shadow = BF1942Settings.Shadow
+        merge_shared_verticies = BF1942Settings.Merge_shared_verticies
+        face_merge_mode = BF1942Settings.ImportSMFaceMergeMode
+        sceneScale = BF1942Settings.sceneScale
+        for (dirPath, dirNames, fileNames) in os.walk(dir):
+            for fileName in fileNames:
+                basename = bpy.path.basename(fileName).rsplit('.',1)
+                if len(basename) > 1:
+                    if basename[1] == 'sm':
+                        path = os.path.join(dirPath, fileName)
+                        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, face_merge_mode, sceneScale)
+        return {'FINISHED'}
 class BF1942_ExportSM(Operator):
     """An Operator for the BF1942 addon"""
     bl_idname = "bf1942.exportsm"
@@ -103,50 +148,9 @@ class BF1942_ExportSM(Operator):
         SHADOW_objects = [] if BF1942Settings.ExportSMShadowLOD == None else [BF1942Settings.ExportSMShadowLOD]
         applyTrans = BF1942Settings.ExportSMApplyTransformation
         generateUV = BF1942Settings.ExportSMAutoGenUV
+        smoothShadingMode = BF1942Settings.ExportSMSmoothShadingMode
         sceneScale = BF1942Settings.sceneScale
-        bf42_export_sm(dir, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, generateUV, sceneScale)
-        return {'FINISHED'}
-class BF1942_ImportSM(Operator):
-    """An Operator for the BF1942 addon"""
-    bl_idname = "bf1942.importsm"
-    bl_label = "Import BF1942 Standard Mesh"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        BF1942Settings = bpy.context.scene.BF1942Settings
-        path = bpy.path.abspath(BF1942Settings.ImportSMFile)
-        add_BoundingBox = BF1942Settings.BoundingBox
-        add_Collision = BF1942Settings.Collision
-        add_Visible = BF1942Settings.Visible
-        add_only_main_LOD = BF1942Settings.OnlyMainLOD
-        add_Shadow = BF1942Settings.Shadow
-        merge_shared_verticies = BF1942Settings.Merge_shared_verticies
-        sceneScale = BF1942Settings.sceneScale
-        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale)
-        return {'FINISHED'}
-class BF1942_ImportSM_Batch(Operator):
-    """An Operator for the BF1942 addon"""
-    bl_idname = "bf1942.importsm_batch"
-    bl_label = "Import BF1942 Standard Mesh Batch"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        BF1942Settings = bpy.context.scene.BF1942Settings
-        dir = bpy.path.abspath(BF1942Settings.ImportSMDir)
-        add_BoundingBox = BF1942Settings.BoundingBox
-        add_Collision = BF1942Settings.Collision
-        add_Visible = BF1942Settings.Visible
-        add_only_main_LOD = BF1942Settings.OnlyMainLOD
-        add_Shadow = BF1942Settings.Shadow
-        merge_shared_verticies = BF1942Settings.Merge_shared_verticies
-        sceneScale = BF1942Settings.sceneScale
-        for (dirPath, dirNames, fileNames) in os.walk(dir):
-            for fileName in fileNames:
-                basename = bpy.path.basename(fileName).rsplit('.',1)
-                if len(basename) > 1:
-                    if basename[1] == 'sm':
-                        path = os.path.join(dirPath, fileName)
-                        bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies,sceneScale)
+        bf42_export_sm(dir, name, BoundingBox_object, COL_objects, LOD_objects, SHADOW_objects, materialID, applyTrans, smoothShadingMode, generateUV, sceneScale)
         return {'FINISHED'}
 class BF1942_ImportTM(Operator):
     """An Operator for the BF1942 addon"""
@@ -161,8 +165,9 @@ class BF1942_ImportTM(Operator):
         add_Collision = BF1942Settings.CollisionTM
         add_Visible = BF1942Settings.VisibleTM
         merge_shared_verticies = BF1942Settings.Merge_shared_verticiesTM
+        face_merge_mode = BF1942Settings.ImportTMFaceMergeMode
         sceneScale = BF1942Settings.sceneScale
-        bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+        bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies, face_merge_mode, sceneScale)
         return {'FINISHED'}
 class BF1942_ImportTM_Batch(Operator):
     """An Operator for the BF1942 addon"""
@@ -177,6 +182,7 @@ class BF1942_ImportTM_Batch(Operator):
         add_Collision = BF1942Settings.CollisionTM
         add_Visible = BF1942Settings.VisibleTM
         merge_shared_verticies = BF1942Settings.Merge_shared_verticiesTM
+        face_merge_mode = BF1942Settings.ImportTMFaceMergeMode
         sceneScale = BF1942Settings.sceneScale
         pathList = []
         for (dirPath, dirNames, fileNames) in os.walk(dir):
@@ -188,7 +194,7 @@ class BF1942_ImportTM_Batch(Operator):
         wm = bpy.context.window_manager
         wm.progress_begin(0, len(pathList))
         for i, path in enumerate(pathList):
-            bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies,sceneScale)
+            bf42_import_tm(path, add_BoundingBox, add_BoundingBox, add_Collision, add_Visible, merge_shared_verticies, face_merge_mode, sceneScale)
             wm.progress_update(i)
         wm.progress_end()
         return {'FINISHED'}
@@ -212,8 +218,9 @@ class BF1942_ExportTM(Operator):
         Trunk_object = BF1942Settings.ExportTMTrunk
         Sprite_object = BF1942Settings.ExportTMSprite
         applyTrans = BF1942Settings.ExportTMApplyTransformation
+        smoothShadingMode = BF1942Settings.ExportTMSmoothShadingMode
         sceneScale = BF1942Settings.sceneScale
-        bf42_export_tm(dir, name, COL_object, Branch_object, Trunk_object, Sprite_object, materialID, AngleCount, applyTrans, sceneScale)
+        bf42_export_tm(dir, name, COL_object, Branch_object, Trunk_object, Sprite_object, materialID, AngleCount, applyTrans, smoothShadingMode, sceneScale)
         return {'FINISHED'}
 #### Level Editing: ####
 def LevelListCallback(self, context):
@@ -499,6 +506,8 @@ class BF1942_ExportLightMaps(Operator):
         base_path = bpy.path.abspath(BF1942Settings.ImportConDir)
         level = BF1942Settings.SelectedLevel
         sceneScale = BF1942Settings.sceneScale
+        ExportLightMapOptions = BF1942Settings.ExportLightMapOptions
+        ExportLightMapSize = BF1942Settings.ExportLightMapSize
         
         if BF1942Settings.ExportLightMapDirBool:
             path = bpy.path.abspath(BF1942Settings.LightMapDir)
@@ -525,14 +534,65 @@ class BF1942_ExportLightMaps(Operator):
             else:
                 objects.append(bf42_duplicateSpecialObject(object))
         bf42_toggle_hide_static_objects(True)
-        light_map_export(StaticObject_objects, path, sceneScale)
+        light_map_export(StaticObject_objects, path, sceneScale, ExportLightMapOptions, ExportLightMapSize)
         bf42_toggle_hide_static_objects(False)
         for object in objects:
             bpy.data.objects.remove(object)
         return {'FINISHED'}
+class BF1942_TextureSubstract(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.texturesubstract"
+    bl_label = "Substract 2 Textures in Batch"
+    bl_options = {'REGISTER', 'UNDO'}
 
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        SourceDir_Complete = bpy.path.abspath(BF1942Settings.SourceDir1a)
+        SourceDir_Diffuse = bpy.path.abspath(BF1942Settings.SourceDir1b)
+        TargetDir = bpy.path.abspath(BF1942Settings.TargetDir1)
+        
+        bf42_TGA_substract(SourceDir_Complete, SourceDir_Diffuse, TargetDir)
+        return {'FINISHED'}
+class BF1942_TextureDenoise(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.texturedenoise"
+    bl_label = "Denoise Textures in Batch"
+    bl_options = {'REGISTER', 'UNDO'}
 
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        SourceDir = bpy.path.abspath(BF1942Settings.SourceDir2)
+        TargetDir = bpy.path.abspath(BF1942Settings.TargetDir2)
+        
+        bf42_TGA_denoise(SourceDir, TargetDir)
+        return {'FINISHED'}
+class BF1942_TextureAverage(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.textureaverage"
+    bl_label = "Average out Textures in Batch"
+    bl_options = {'REGISTER', 'UNDO'}
 
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        AverageColor = list(BF1942Settings.AverageColor)
+        SourceDir = bpy.path.abspath(BF1942Settings.SourceDir3)
+        TargetDir = bpy.path.abspath(BF1942Settings.TargetDir3)
+        
+        bf42_TGA_average(AverageColor, SourceDir, TargetDir)
+        return {'FINISHED'}
+class BF1942_TextureRAWToTGA(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.texturerawtotga"
+    bl_label = "Convert RAW lsb to TGA lsb"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        SourceFile = bpy.path.abspath(BF1942Settings.SourceFile1)
+        TargetFile = bpy.path.abspath(BF1942Settings.TargetFile1)
+        
+        bf42_raw_to_TGA(SourceFile, TargetFile)
+        return {'FINISHED'}
 
 
 
@@ -630,6 +690,7 @@ class BF1942_PT_ImportSM(Panel):
         col.prop(settings, 'OnlyMainLOD', text='Only Main LOD')
         col.prop(settings, 'Shadow')
         col.prop(settings, 'Merge_shared_verticies', text='Merge shared vertices')
+        col.prop(settings, 'ImportSMFaceMergeMode', text='Face Merge Mode')
         col.prop(settings, 'ImportSMFile', text='File')
         # row = layout.row(align=True)
         col.operator("bf1942.importsm", text="Import")
@@ -688,6 +749,7 @@ class BF1942_PT_ExportSM(Panel):
                 col.label(text="LOD"+str(i+LOD_count+1)+": will be generated")
         col.prop(settings, 'ExportSMShadowLOD', text='ShadowLOD')
         col.prop(settings, 'ExportSMApplyTransformation', text='apply object transformation/scale')
+        col.prop(settings, 'ExportSMSmoothShadingMode', text='Smooth Shading Mode')
         col.operator("bf1942.exportsm", text="Export")
 
 class BF1942_PT_ImportTM(Panel):
@@ -708,6 +770,7 @@ class BF1942_PT_ImportTM(Panel):
         col.prop(settings, 'CollisionTM', text='Collision')
         col.prop(settings, 'VisibleTM', text='Visible')
         col.prop(settings, 'Merge_shared_verticiesTM', text='Merge shared vertices')
+        col.prop(settings, 'ImportTMFaceMergeMode', text='Face Merge Mode')
         col.prop(settings, 'ImportTMFile', text='File')
         # row = layout.row(align=True)
         col.operator("bf1942.importtm", text="Import")
@@ -739,6 +802,7 @@ class BF1942_PT_ExportTM(Panel):
         col.prop(settings, 'ExportTMBranch', text='Branch')
         col.prop(settings, 'ExportTMSprite', text='Sprite')
         col.prop(settings, 'ExportTMApplyTransformation', text='apply object transformation/scale')
+        col.prop(settings, 'ExportTMSmoothShadingMode', text='Smooth Shading Mode')
         col.operator("bf1942.exporttm", text="Export")
 
 class BF1942_PT_ImportCon(Panel):
@@ -779,7 +843,50 @@ class BF1942_PT_ImportCon(Panel):
             box.prop(settings, 'ExportLightMapDirBool', text='use custom export Folder')
             if BF1942Settings.ExportLightMapDirBool:
                 box.prop(settings, 'LightMapDir', text='LightMap Export Folder')
+            box.prop(settings, "ExportLightMapOptions", text="Mode")
+            box.prop(settings, "ExportLightMapSize", text="Size")
             box.operator("bf1942.exportlightmaps", text="Export LightMaps")
+
+class BF1942_PT_Convert(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Texture Conversion"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        scn = context.scene
+        settings = scn.BF1942Settings
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        layout = self.layout
+        
+        col = layout.column(align=True)
+        
+        box = col.box()
+        box.label(text="(Batch) Substract Diffuse Bake from Complete Bake (TGA)")
+        box.prop(settings, 'SourceDir1a', text="Complete Folder")
+        box.prop(settings, 'SourceDir1b', text="Diffuse Folder")
+        box.prop(settings, 'TargetDir1', text="Targe Folder")
+        box.operator("bf1942.texturesubstract", text="Substract")
+        
+        box = col.box()
+        box.label(text="(Batch) Denoise textures (TGA)")
+        box.prop(settings, 'SourceDir2', text="Source Folder")
+        box.prop(settings, 'TargetDir2', text="Targe Folder")
+        box.operator("bf1942.texturedenoise", text="Denoise")
+        
+        box = col.box()
+        box.label(text="(Batch) Average textures (TGA)")
+        box.prop(settings, "AverageColor")
+        box.prop(settings, 'SourceDir3', text="Source Folder")
+        box.prop(settings, 'TargetDir3', text="Targe Folder")
+        box.operator("bf1942.textureaverage", text="Average")
+        
+        box = col.box()
+        box.label(text="RAW to TGA for LightmapShadowBits")
+        box.prop(settings, 'SourceFile1', text="Raw")
+        box.prop(settings, 'TargetFile1', text="TGA")
+        box.operator("bf1942.texturerawtotga", text="Convert")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -860,7 +967,8 @@ class BF1942_PT_material(Panel):
 # Properties
 def bf42_rs_twosided(self,context):
     if hasattr(context, 'material'):
-        context.material.use_backface_culling = not self.twosided
+        # context.material.use_backface_culling = not self.twosided
+        pass
 def bf42_rs_transparent(self,context):
     if hasattr(context, 'material'):
         if self.transparent:
@@ -893,83 +1001,36 @@ class BF1942_sm_Properties(PropertyGroup):
         ("zero", "zero", '')
     ]
     
-    texture : StringProperty(
-        name="texture",
-        default=""
-    )
-    transparent : BoolProperty(
-        name="transparent",
-        default=False,
-        update=bf42_rs_transparent
-    )
-    lighting : BoolProperty(
-        name="lighting",
-        default=True
-    )
-    lightingSpecular : BoolProperty(
-        name="lightingSpecular",
-        default=False
-    )
-    twosided : BoolProperty(
-        name="twosided",
-        default=False,
-        update=bf42_rs_twosided
-    )
-    envmap : BoolProperty(
-        name="envmap",
-        default=False
-    )
-    textureFade : BoolProperty(
-        name="textureFade",
-        default=False
-    )
-    depthWrite : BoolProperty(
-        name="depthWrite",
-        default=True
-    )
-    blendSrc : EnumProperty(
-        items = blend_modes,
-        name="blendSrc",
-        description="blend modes",
-        default="invSourceAlpha"
-    )
-    blendDest : EnumProperty(
-        items = blend_modes,
-        name="blendDest",
-        description="blend modes",
-        default="sourceAlpha"
-    )
-    alphaTestRef : FloatProperty(
-        name="alphaTestRef",
-        default = 0,
-        min = 0,
-        max = 1
-    )
-    materialDiffuse : FloatVectorProperty(
-        name="materialDiffuse",
-        default=(1, 1, 1), 
-        min = 0,
-        max = 1,
-        subtype = "COLOR"
-    )
-    materialSpecular : FloatVectorProperty(
-        name="materialSpecular",
-        default=(1, 1, 1), 
-        min = 0,
-        max = 1,
-        subtype = "COLOR"
-    )
-    materialSpecularPower : FloatProperty(
-        name="materialSpecularPower",
-        default = 12.5,
-        min = 0
-    )
+    texture : StringProperty(name="texture", default="")
+    
+    transparent : BoolProperty(name="transparent", default=False, update=bf42_rs_transparent)
+    
+    lighting : BoolProperty(name="lighting", default=True)
+    
+    lightingSpecular : BoolProperty(name="lightingSpecular", default=False)
+    
+    twosided : BoolProperty(name="twosided", default=False, update=bf42_rs_twosided)
+    
+    envmap : BoolProperty(name="envmap", default=False)
+    
+    textureFade : BoolProperty(name="textureFade", default=False)
+    
+    depthWrite : BoolProperty(name="depthWrite", default=True)
+    
+    blendSrc : EnumProperty(items = blend_modes, name="blendSrc", description="blend modes", default="invSourceAlpha")
+    
+    blendDest : EnumProperty(items = blend_modes, name="blendDest", description="blend modes", default="sourceAlpha")
+    
+    alphaTestRef : FloatProperty(name="alphaTestRef", default = 0, min = 0, max = 1)
+    
+    materialDiffuse : FloatVectorProperty(name="materialDiffuse", default=(1, 1, 1),  min = 0, max = 1, subtype = "COLOR")
+    
+    materialSpecular : FloatVectorProperty(name="materialSpecular", default=(1, 1, 1),  min = 0, max = 1, subtype = "COLOR")
+    
+    materialSpecularPower : FloatProperty(name="materialSpecularPower", default = 12.5, min = 0)
+    
     #for collision mesh:
-    MaterialID : IntProperty(
-        name="MaterialID",
-        default = 45,
-        min = 0
-    )
+    MaterialID : IntProperty( name="MaterialID", default = 45, min = 0)
 
 
 
@@ -983,133 +1044,64 @@ def bf42_loadLevelList(self,context):
             if os.path.isdir(os.path.join(levelsDir,dir_name)):
                 LevelList.append(dir_name)
     BF1942Settings.LevelList = dumps(LevelList)
+def bf42_ExportLightMapSize(self,context):
+    BF1942Settings = bpy.context.scene.BF1942Settings
+    size = BF1942Settings.ExportLightMapSize
+    size = 2**round(log2(size))
+    BF1942Settings.ExportLightMapSize = size
     
 class BF1942Settings(PropertyGroup):
 
     ################# world settings ###################
     
-    sceneScale : FloatProperty(
-        name = "Scene Scale",
-        description = "The scale factor of the Blender scene",
-        default = 0.1,
-        min = 0
-        )
+    sceneScale : FloatProperty(name = "Scene Scale", description = "The scale factor of the Blender scene", default = 0.1, min = 0)
     
-    WorldSize : IntProperty(
-        name = "WorldSize",
-        description = "WorldSize in Init/Terrain.con",
-        default = 1024,
-        min = 0
-        )
+    WorldSize : IntProperty(name = "WorldSize", description = "WorldSize in Init/Terrain.con", default = 1024, min = 0)
 
-    yScale : FloatProperty(
-        name = "yScale",
-        description = "yScale in Init/Terrain.con",
-        default = 0.6,
-        min = 0
-        )
+    yScale : FloatProperty(name = "yScale", description = "yScale in Init/Terrain.con", default = 0.6, min = 0)
 
-    waterLevel : FloatProperty(
-        name = "waterLevel",
-        description = "waterLevel in Init/Terrain.con",
-        default = 0
-        )
-        
-    TextureDirectory : StringProperty(
-        name = "TextureDirectory",
-        description = "TextureDirectory",
-        default = "",
-        subtype="DIR_PATH"
-        )
+    waterLevel : FloatProperty(name = "waterLevel", description = "waterLevel in Init/Terrain.con", default = 0) 
+    
+    TextureDirectory : StringProperty(name = "TextureDirectory", description = "TextureDirectory", default = "", subtype="DIR_PATH")
     
     ################# heightmap settings ###################
 
-    ImportHeightmapFile : StringProperty(
-        name = "ImportHeightmapFile",
-        description = "ImportHeightmapFile",
-        default = "",
-        subtype="FILE_PATH"
-        )
-    ExportHeightmapFile : StringProperty(
-        name = "ExportHeightmapFile",
-        description = "ExportHeightmapFile",
-        default = "",
-        subtype="DIR_PATH"
-        )
+    ImportHeightmapFile : StringProperty(name = "ImportHeightmapFile", description = "ImportHeightmapFile", default = "", subtype="FILE_PATH")
     
-    addWater : BoolProperty(
-        name = "Add Water",
-        description = "Add Water mesh",
-        default = False
-        )
-
-    addWorldSize : BoolProperty(
-        name = "Add WorldSize to World Settings",
-        description = "Add WorldSize to World Settings",
-        default = True
-        )
-
-    HeightmapObject : PointerProperty(
-        type=bpy.types.Object
-        )
+    ExportHeightmapFile : StringProperty(name = "ExportHeightmapFile", description = "ExportHeightmapFile", default = "", subtype="DIR_PATH")
     
-    AddHeightmapAfterExport : BoolProperty(
-        name = "Import heightmap after export",
-        description = "Import heightmap after export",
-        default = True
-        )
+    addWater : BoolProperty(name = "Add Water", description = "Add Water mesh", default = False )
+
+    addWorldSize : BoolProperty(name = "Add WorldSize to World Settings", description = "Add WorldSize to World Settings", default = True)
+
+    HeightmapObject : PointerProperty(type=bpy.types.Object )
+    
+    AddHeightmapAfterExport : BoolProperty(name = "Import heightmap after export", description = "Import heightmap after export", default = True)
     
     ################# .sm Import settings ###################
     
-    ImportSMFile : StringProperty(
-        name = "ImportSMFile",
-        description = "ImportSMFile",
-        default = "",
-        subtype="FILE_PATH"
-        )
+    ImportSMFile : StringProperty(name = "ImportSMFile", description = "ImportSMFile", default = "", subtype="FILE_PATH")
         
-    ImportSMDir : StringProperty(
-        name = "ImportSMDir",
-        description = "ImportSMDir",
-        default = "",
-        subtype="DIR_PATH"
-        )
+    ImportSMDir : StringProperty(name = "ImportSMDir", description = "ImportSMDir", default = "", subtype="DIR_PATH")
 
-    BoundingBox : BoolProperty(
-        name = "BoundingBox",
-        description = "BoundingBox",
-        default = False
-        )
+    BoundingBox : BoolProperty(name = "BoundingBox", description = "BoundingBox", default = False)
 
-    Collision : BoolProperty(
-        name = "Collision",
-        description = "Collision",
-        default = False
-        )
+    Collision : BoolProperty(name = "Collision", description = "Collision", default = False)
 
-    Visible : BoolProperty(
-        name = "Visible",
-        description = "Visible",
-        default = True
-        )
+    Visible : BoolProperty(name = "Visible", description = "Visible", default = True)
 
-    OnlyMainLOD : BoolProperty(
-        name = "OnlyMainLOD",
-        description = "OnlyMainLOD",
-        default = True
-        )
+    OnlyMainLOD : BoolProperty(name = "OnlyMainLOD", description = "OnlyMainLOD", default = True)
 
-    Shadow : BoolProperty(
-        name = "Shadow",
-        description = "Shadow",
-        default = False
-        )
+    Shadow : BoolProperty(name = "Shadow", description = "Shadow", default = False)
 
-    Merge_shared_verticies : BoolProperty(
-        name = "Merge_shared_verticies",
-        description = "Merge shared verticies",
-        default = True
-        )
+    Merge_shared_verticies : BoolProperty(name = "Merge_shared_verticies", description = "Merge shared verticies", default = True)
+    
+    face_merge__modes = [
+        ("None", "None", ''),
+        ("Tris to Quads", "Tris to Quads", ''),
+        ("Tris to Ngons", "Tris to Ngons", '')
+    ]
+    ImportSMFaceMergeMode : EnumProperty(items = face_merge__modes, name="ImportSMFaceMergeMode", description="Face merge modes", default="Tris to Ngons")
     
     ################# .sm Export settings ###################
     
@@ -1150,46 +1142,29 @@ class BF1942Settings(PropertyGroup):
     ExportSMShadowLOD : PointerProperty(type=bpy.types.Object)
 
     ExportSMApplyTransformation : BoolProperty(name = "ExportSMApplyTransformation", description = "ExportSMApplyTransformation", default = True)
+    
+    smooth_shading__modes = [
+        ("Sharp Marked Edges", "Sharp Marked Edges", ''),
+        ("Generate", "Generate", ''),
+        ("Both", "Both", '')
+    ]
+    ExportSMSmoothShadingMode : EnumProperty(items = smooth_shading__modes, name="ExportSMSmoothShadingMode", description="Smooth shading modes", default="Sharp Marked Edges")
 
     ################# .tm Import settings ###################
     
-    ImportTMFile : StringProperty(
-        name = "ImportTMFile",
-        description = "ImportTMFile",
-        default = "",
-        subtype="FILE_PATH"
-        )
-        
-    ImportTMDir : StringProperty(
-        name = "ImportTMDir",
-        description = "ImportTMDir",
-        default = "",
-        subtype="DIR_PATH"
-        )
+    ImportTMFile : StringProperty(name = "ImportTMFile", description = "ImportTMFile", default = "", subtype="FILE_PATH") 
+    
+    ImportTMDir : StringProperty(name = "ImportTMDir", description = "ImportTMDir", default = "", subtype="DIR_PATH")
 
-    BoundingBoxesTM : BoolProperty(
-        name = "BoundingBoxesTM",
-        description = "BoundingBoxesTM",
-        default = False
-        )
+    BoundingBoxesTM : BoolProperty(name = "BoundingBoxesTM", description = "BoundingBoxesTM", default = False)
 
-    CollisionTM : BoolProperty(
-        name = "CollisionTM",
-        description = "CollisionTM",
-        default = False
-        )
+    CollisionTM : BoolProperty(name = "CollisionTM", description = "CollisionTM", default = False)
 
-    VisibleTM : BoolProperty(
-        name = "VisibleTM",
-        description = "VisibleTM",
-        default = True
-        )
+    VisibleTM : BoolProperty(name = "VisibleTM", description = "VisibleTM", default = True)
 
-    Merge_shared_verticiesTM : BoolProperty(
-        name = "Merge_shared_verticiesTM",
-        description = "Merge shared verticies",
-        default = True
-        )
+    Merge_shared_verticiesTM : BoolProperty(name = "Merge_shared_verticiesTM", description = "Merge shared verticies", default = True)
+    
+    ImportTMFaceMergeMode : EnumProperty(items = face_merge__modes, name="ImportTMFaceMergeMode", description="Face merge modes", default="Tris to Ngons")
     
     ################# .tm Export settings ###################
     
@@ -1213,6 +1188,8 @@ class BF1942Settings(PropertyGroup):
 
     ExportTMApplyTransformation : BoolProperty(name = "ExportTMApplyTransformation", description = "ExportTMApplyTransformation", default = True)
     
+    ExportTMSmoothShadingMode : EnumProperty(items = smooth_shading__modes, name="ExportTMSmoothShadingMode", description="Smooth shading modes", default="Sharp Marked Edges")
+    
     ################# Script/Level import settings ###################
     
     ImportConDir : StringProperty(name = "ImportConDir", description = "Base directory for extracted bf1942", default = "", subtype="DIR_PATH", update=bf42_loadLevelList)
@@ -1222,8 +1199,17 @@ class BF1942Settings(PropertyGroup):
     ExportConStaticFile : StringProperty(name = "ExportConStaticFile", description = "Custom file for export of static objects", default = "", subtype="FILE_PATH")
     
     # LightMaps export settings:
-    LightMapDir : StringProperty(name = "LightMapDir", description = "LightMap Directory", default = "", subtype="DIR_PATH")
     ExportLightMapDirBool : BoolProperty(name = "ExportLightMapDirBool", description = "ExportConStaticFileBool", default = False)
+    LightMapDir : StringProperty(name = "LightMapDir", description = "LightMap Directory", default = "", subtype="DIR_PATH")
+    bake_modes = [
+        ("All", "All", ''),
+        ("All - Diffuse", "All - Diffuse", ''),
+        ("Environment", "Environment", ''),
+        ("Diffuse", "Diffuse", ''),
+        ("Custom", "Custom", '')
+    ]
+    ExportLightMapOptions : EnumProperty(items = bake_modes, name="ExportLightMapOptions", description="bake modes", default="All - Diffuse")
+    ExportLightMapSize : IntProperty(name="ExportLightMapSize", default = 128, min = 0, update=bf42_ExportLightMapSize)
     
     AllBF42Data : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     LevelList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
@@ -1233,9 +1219,20 @@ class BF1942Settings(PropertyGroup):
     ObjectTemplateList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     SelectedObject : PointerProperty(type=bpy.types.Object)
     
-    
-    
+    ################# texture conversion ###################
+    SourceDir1a : StringProperty(name = "SourceDir1a", default = "", subtype="DIR_PATH")
+    SourceDir1b : StringProperty(name = "SourceDir1b", default = "", subtype="DIR_PATH")
+    TargetDir1 : StringProperty(name = "TargetDir1", default = "", subtype="DIR_PATH")
+    SourceDir2 : StringProperty(name = "SourceDir2", default = "", subtype="DIR_PATH")
+    TargetDir2 : StringProperty(name = "TargetDir2", default = "", subtype="DIR_PATH")
+    SourceDir3 : StringProperty(name = "SourceDir3", default = "", subtype="DIR_PATH")
+    TargetDir3 : StringProperty(name = "TargetDir3", default = "", subtype="DIR_PATH")
+    SourceFile1 : StringProperty(name = "SourceFile1", default = "", subtype="FILE_PATH")
+    TargetFile1 : StringProperty(name = "TargetFile1", default = "", subtype="FILE_PATH")
+    AverageColor : FloatVectorProperty(name="AverageColor", default=(1, 1, 1),  min = 0, max = 1, subtype = "COLOR")
     #################  ###################
+    
+    
     
     
     

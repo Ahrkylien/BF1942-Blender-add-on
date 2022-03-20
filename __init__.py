@@ -48,6 +48,12 @@ classes = (
     BF1942_ExportLightMaps,
     BF1942_PT_ImportCon,
     
+    BF1942_TextureSubstract,
+    BF1942_TextureDenoise,
+    BF1942_TextureAverage,
+    BF1942_TextureRAWToTGA,
+    BF1942_PT_Convert,
+    
     BF1942_PT_material,
     
     BF1942AddonPreferences,

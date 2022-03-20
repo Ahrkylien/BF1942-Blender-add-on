@@ -49,6 +49,19 @@ class bf42_vec3:
             significance = max(6,4+nrOfDigitsBeforeDot)
             strings.append("%.*g" % (significance, v))
         return(strings[0]+"/"+strings[1]+"/"+strings[2])
+    def str_floor(self, numberOfSignif=6): #for lightmap
+        strings = []
+        for v in self.lst():
+            if v == 0:
+                v = 0 # prevent negative 0 (cosmetic)
+            nrOfDigitsBeforeDot = int(math.log10(abs(v)))+1 if v != 0 else 0
+            significance = max(6,4+nrOfDigitsBeforeDot)
+            string = "%.*g" % (significance, v)
+            if "e" in string:
+                strings.append("0")
+            else:
+                strings.append(string.split(".")[0])
+        return(strings[0]+"-"+strings[1]+"-"+strings[2])
     def lst(self): #return new vector
         return([self.x, self.y, self.z])
     def toBlend(self,sceneScale = 1):
