@@ -512,16 +512,30 @@ def bf42_addMaterialID_Material(mesh, materialID):
 def remake_sm_BSP(path,depth='-a'):
     BSP_path = os.path.normpath(os.path.join(__file__,"../../bin/makeBSP.exe"))
     cmd = '"'+BSP_path+'" "'+path+'" '+depth+''
+    # print(cmd)
     p = os.popen(cmd)
-#    print(p.read())
+    # print(p.read())
     p.close()
     
-def getBoundingBox(mesh):
+def getBoundingBox(mesh, noPolygons = False):
     bb = [0]*6
     firstIteration = True
     for polygon in mesh.polygons:
         for vertex_index in polygon.vertices:
             v = mesh.vertices[vertex_index].co
+            if firstIteration:
+                bb = [v[0], v[2], v[1], v[0], v[2], v[1]]
+                firstIteration = False
+            else:
+                bb[0] = min(bb[0],v[0])
+                bb[1] = min(bb[1],v[2])
+                bb[2] = min(bb[2],v[1])
+                bb[3] = max(bb[3],v[0])
+                bb[4] = max(bb[4],v[2])
+                bb[5] = max(bb[5],v[1])
+    if noPolygons:
+        for vertex in mesh.vertices:
+            v = vertex.co
             if firstIteration:
                 bb = [v[0], v[2], v[1], v[0], v[2], v[1]]
                 firstIteration = False
@@ -983,7 +997,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
                     bf42_applyTransformObject(object)
                 object.data.transform(Matrix.Scale(1/sceneScale, 4))
                 # bf42_triangulateObject(object)
-                boundingBox = getBoundingBox(object.data)
+                boundingBox = getBoundingBox(object.data, True)
                 bpy.data.objects.remove(object)
             elif len(LOD_objects) > 0: # or should I use col?
                 object = bf42_duplicateSpecialObject(LOD_objects[0])
