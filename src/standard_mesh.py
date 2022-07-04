@@ -1050,7 +1050,7 @@ def bf42_export_sm(directory, name, BoundingBox_object, COL_objects, LOD_objects
             if hasShadowLods == 1:
                 sm_i_w(f, len(SHADOW_objects))
                 for SHADOW_object in SHADOW_objects:
-                    sm_LOD_export(f, SHADOW_object, applyTrans, sceneScale)
+                    sm_LOD_export(f, SHADOW_object, applyTrans, smoothShadingMode, sceneScale)
             
             #Portal Mesh
             PortalMeshBlockSize = 0
