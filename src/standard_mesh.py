@@ -496,12 +496,13 @@ def bf42_addMaterialID_Material(mesh, materialID):
     materialName = "bf42_materialID_"+str(materialID)
     mat = None
     for material in bpy.data.materials:
-        if material.name == materialName:
-            if material.BF1942_sm_Properties.MaterialID == materialID:
-                mat = material
-            else:
-                material.name = materialName+"_ERROR"
-            break
+        if material != None:
+            if material.name == materialName:
+                if material.BF1942_sm_Properties.MaterialID == materialID:
+                    mat = material
+                else:
+                    material.name = materialName+"_ERROR"
+                break
     if mat == None:
         mat = bpy.data.materials.new(materialName)
         mat.diffuse_color = random(), random(), random(), 1
@@ -595,7 +596,7 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
         sm_i_short_w(f, 0)
     sm_i_w(f, len(faces)) #numFaces
     for faceNumber, face in enumerate(faces):
-        sm_i_short_w(f, (face[0],face[1],face[2]))
+        sm_i_short_w(f, (face[0], face[1], face[2]))
         face_materialID = materialID if materialID != None else faces_materialID[faceNumber]
         sm_i_short_w(f, face_materialID) #materialID
     #bsp_block:
@@ -603,10 +604,10 @@ def sm_col_export(f, object, materialID, applyTrans, sceneScale):
     sm_i_w(f, 0) #numBspEdges
     sm_i_w(f, len(faceNormals)) #numFaceNormals
     for faceNumber, faceNormal in enumerate(faceNormals):
-        sm_f_w(f, (faceNormal[0],faceNormal[2],faceNormal[1]))
+        sm_f_w(f, (faceNormal[0], faceNormal[2], faceNormal[1]))
         face = faces[faceNumber]
         face_materialID = materialID if materialID != None else faces_materialID[faceNumber]
-        sm_i_w(f, (0,face[0],face[1],face[2],face_materialID)) #(0, sm_COL_face.vertices, sm_COL_face.materialID)
+        sm_i_w(f, (0, face[0], face[1], face[2], face_materialID)) #(0, sm_COL_face.vertices, sm_COL_face.materialID)
     sm_f_w(f,[0]*6) #apparently boundingBox is not needed for base node
     sm_i_w(f, len(faces)) #facenum
     for faceNumber in range(len(faces)):
@@ -664,57 +665,58 @@ def sm_LOD_export(f, object, applyTrans, smoothShadingMode, sceneScale, addLight
     LOD_mesh_materials = []
     RS_materials = []
     for materialNumber, material in enumerate(mesh.materials):
-        RS_material = bf42_material("material_"+str(materialNumber))
-        RS_material.texture = material.BF1942_sm_Properties.texture
-        RS_material.transparent = material.BF1942_sm_Properties.transparent
-        RS_material.lighting = material.BF1942_sm_Properties.lighting
-        RS_material.lightingSpecular = material.BF1942_sm_Properties.lightingSpecular
-        RS_material.twosided = material.BF1942_sm_Properties.twosided
-        RS_material.envmap = material.BF1942_sm_Properties.envmap
-        RS_material.textureFade = material.BF1942_sm_Properties.textureFade
-        RS_material.depthWrite = material.BF1942_sm_Properties.depthWrite
-        RS_material.blendSrc = material.BF1942_sm_Properties.blendSrc
-        RS_material.blendDest = material.BF1942_sm_Properties.blendDest
-        RS_material.alphaTestRef = material.BF1942_sm_Properties.alphaTestRef
-        RS_material.materialDiffuse = material.BF1942_sm_Properties.materialDiffuse
-        RS_material.materialSpecular = material.BF1942_sm_Properties.materialSpecular
-        RS_material.materialSpecularPower = material.BF1942_sm_Properties.materialSpecularPower
-        RS_materials.append(RS_material)
-        faces = []
-        vertices = []
-        vertexNormals = []
-        vertexTextureUV = []
-        vertexLightmapUV = []
-        vertices_ref = []
-        for polygon in mesh.polygons:
-            if polygon.material_index == materialNumber:
-                face = []
-                for loop_index in polygon.loop_indices:
-                    vertex_index = mesh.loops[loop_index].vertex_index
-                    vertex = mesh.vertices[vertex_index]
-                    if texutre_uv_layer == None:
-                        vertexTextureUVco = (0,0)
-                    else:
-                        vertexTextureUVco = (texutre_uv_layer.data[loop_index].uv[0],1-texutre_uv_layer.data[loop_index].uv[1])
-                    if addLightMapUV:
-                        vertexLightmapUVco = (light_uv_layer.data[loop_index].uv[0],1-light_uv_layer.data[loop_index].uv[1])
-                    ref = (vertex_index, vertexTextureUVco, (vertexLightmapUVco if addLightMapUV else None))
-                    try:
-                        vertices_ref_index = vertices_ref.index(ref)
-                    except ValueError:
-                        vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
-                        vertexNormals.append(tuple(vertex.normal))
-                        vertexTextureUV.append(vertexTextureUVco)
+        if material != None:
+            RS_material = bf42_material("material_"+str(materialNumber))
+            RS_material.texture = material.BF1942_sm_Properties.texture
+            RS_material.transparent = material.BF1942_sm_Properties.transparent
+            RS_material.lighting = material.BF1942_sm_Properties.lighting
+            RS_material.lightingSpecular = material.BF1942_sm_Properties.lightingSpecular
+            RS_material.twosided = material.BF1942_sm_Properties.twosided
+            RS_material.envmap = material.BF1942_sm_Properties.envmap
+            RS_material.textureFade = material.BF1942_sm_Properties.textureFade
+            RS_material.depthWrite = material.BF1942_sm_Properties.depthWrite
+            RS_material.blendSrc = material.BF1942_sm_Properties.blendSrc
+            RS_material.blendDest = material.BF1942_sm_Properties.blendDest
+            RS_material.alphaTestRef = material.BF1942_sm_Properties.alphaTestRef
+            RS_material.materialDiffuse = material.BF1942_sm_Properties.materialDiffuse
+            RS_material.materialSpecular = material.BF1942_sm_Properties.materialSpecular
+            RS_material.materialSpecularPower = material.BF1942_sm_Properties.materialSpecularPower
+            RS_materials.append(RS_material)
+            faces = []
+            vertices = []
+            vertexNormals = []
+            vertexTextureUV = []
+            vertexLightmapUV = []
+            vertices_ref = []
+            for polygon in mesh.polygons:
+                if polygon.material_index == materialNumber:
+                    face = []
+                    for loop_index in polygon.loop_indices:
+                        vertex_index = mesh.loops[loop_index].vertex_index
+                        vertex = mesh.vertices[vertex_index]
+                        if texutre_uv_layer == None:
+                            vertexTextureUVco = (0,0)
+                        else:
+                            vertexTextureUVco = (texutre_uv_layer.data[loop_index].uv[0],1-texutre_uv_layer.data[loop_index].uv[1])
                         if addLightMapUV:
-                            vertexLightmapUV.append(vertexLightmapUVco)
-                        vertices_ref.append(ref)
-                        vertices_ref_index = len(vertices_ref)-1
-                    face.append(vertices_ref_index)
-                faces.append((face[0],face[2],face[1])) # correct for normal
-        if len(faces) > 0:
-            materialSettings = 0
-            vertexLightmapUV = vertexLightmapUV if len(vertexLightmapUV)>0 else None
-            LOD_mesh_materials.append(sm_LOD_mesh_material("material_"+str(materialNumber), materialSettings, vertices, vertexNormals, vertexTextureUV, vertexLightmapUV, faces))
+                            vertexLightmapUVco = (light_uv_layer.data[loop_index].uv[0],1-light_uv_layer.data[loop_index].uv[1])
+                        ref = (vertex_index, vertexTextureUVco, (vertexLightmapUVco if addLightMapUV else None))
+                        try:
+                            vertices_ref_index = vertices_ref.index(ref)
+                        except ValueError:
+                            vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
+                            vertexNormals.append(tuple(vertex.normal))
+                            vertexTextureUV.append(vertexTextureUVco)
+                            if addLightMapUV:
+                                vertexLightmapUV.append(vertexLightmapUVco)
+                            vertices_ref.append(ref)
+                            vertices_ref_index = len(vertices_ref)-1
+                        face.append(vertices_ref_index)
+                    faces.append((face[0],face[2],face[1])) # correct for normal
+            if len(faces) > 0:
+                materialSettings = 0
+                vertexLightmapUV = vertexLightmapUV if len(vertexLightmapUV)>0 else None
+                LOD_mesh_materials.append(sm_LOD_mesh_material("material_"+str(materialNumber), materialSettings, vertices, vertexNormals, vertexTextureUV, vertexLightmapUV, faces))
     for LOD_mesh_material in LOD_mesh_materials:
         LOD_mesh_material.write_1(f)
     for LOD_mesh_material in LOD_mesh_materials:

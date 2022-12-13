@@ -470,31 +470,32 @@ def bf42_export_tm(directory, name, COL_object, Branch_object, Trunk_object, Spr
                         if uv_layer.name == "textureMap":
                             texutre_uv_layer = uv_layer
                     for materialNumber, material in enumerate(mesh.materials):
-                        materialFaces = []
-                        for polygon in mesh.polygons:
-                            if polygon.material_index == materialNumber:
-                                face = []
-                                for loop_index in polygon.loop_indices:
-                                    vertex_index = mesh.loops[loop_index].vertex_index
-                                    vertex = mesh.vertices[vertex_index]
-                                    if texutre_uv_layer == None:
-                                        vertexTextureUVco = (0,0)
-                                    else:
-                                        vertexTextureUVco = (texutre_uv_layer.data[loop_index].uv[0],1-texutre_uv_layer.data[loop_index].uv[1])
-                                    ref = (vertex.co, vertexTextureUVco)
-                                    try:
-                                        vertices_ref_index = vertices_ref.index(ref)
-                                    except ValueError:
-                                        vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
-                                        vertexNormals.append(tuple(vertex.normal))
-                                        vertexTextureUV.append(vertexTextureUVco)
-                                        vertices_ref.append(ref)
-                                        vertices_ref_index = len(vertices_ref)-1
-                                    face.append(vertices_ref_index)
-                                materialFaces.append((face[0],face[2],face[1])) # correct for normal
-                        if len(materialFaces) > 0:
-                            faces.append(materialFaces)
-                            textureNames.append(material.BF1942_sm_Properties.texture)
+                        if material != None:
+                            materialFaces = []
+                            for polygon in mesh.polygons:
+                                if polygon.material_index == materialNumber:
+                                    face = []
+                                    for loop_index in polygon.loop_indices:
+                                        vertex_index = mesh.loops[loop_index].vertex_index
+                                        vertex = mesh.vertices[vertex_index]
+                                        if texutre_uv_layer == None:
+                                            vertexTextureUVco = (0,0)
+                                        else:
+                                            vertexTextureUVco = (texutre_uv_layer.data[loop_index].uv[0],1-texutre_uv_layer.data[loop_index].uv[1])
+                                        ref = (vertex.co, vertexTextureUVco)
+                                        try:
+                                            vertices_ref_index = vertices_ref.index(ref)
+                                        except ValueError:
+                                            vertices.append((vertex.co[0],vertex.co[2],vertex.co[1]))
+                                            vertexNormals.append(tuple(vertex.normal))
+                                            vertexTextureUV.append(vertexTextureUVco)
+                                            vertices_ref.append(ref)
+                                            vertices_ref_index = len(vertices_ref)-1
+                                        face.append(vertices_ref_index)
+                                    materialFaces.append((face[0],face[2],face[1])) # correct for normal
+                            if len(materialFaces) > 0:
+                                faces.append(materialFaces)
+                                textureNames.append(material.BF1942_sm_Properties.texture)
                     bpy.data.objects.remove(object)
                 allTextureNames.append(textureNames)
                 allVertices.append(vertices)
