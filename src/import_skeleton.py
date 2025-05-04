@@ -196,6 +196,8 @@ def get_minimum_distance_between_lines(matrix1, matrix2):
         return None, None, None
 
 def import_ske(filepath):
+    debug = False
+    
     distance_threshold = 0.001;
     
     bones = read_bones_from_ske(filepath)
@@ -227,21 +229,25 @@ def import_ske(filepath):
         if bone.is_root:
             pass
         
-        mtr = bone.get_absolute_matrix()
-        blender_bone.head = mtr@ Vector((-0.03, 0, 0))
-        blender_bone.tail = mtr@ Vector((0.03, 0, 0))
-        
-        if not bone.is_root:
-            minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.parent.get_absolute_matrix(), mtr)
-            if minimum_distance is not None and minimum_distance < distance_threshold:
-                blender_bone.use_connect = True
-            elif not bone.is_leaf_bone: # this is a prediction for intermediate bones and not perse correct (make it a setting)
-                blender_bone.head = bone.absolute_position
-        
-        if not bone.is_leaf_bone:
-            minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.children[0].get_absolute_matrix(), mtr)
-            if minimum_distance is not None and minimum_distance < distance_threshold:
-                blender_bone.tail = pos1
+        if debug:
+            mtr = Matrix.Identity(4)
+            blender_bone.head = mtr@ Vector((0, 0, 0))
+            blender_bone.tail = mtr@ Vector((0.08, 0, 0))
+        else:
+            mtr = bone.get_absolute_matrix()
+            blender_bone.head = mtr@ Vector((-0.03, 0, 0))
+            blender_bone.tail = mtr@ Vector((0.03, 0, 0))
+            if not bone.is_root:
+                minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.parent.get_absolute_matrix(), mtr)
+                if minimum_distance is not None and minimum_distance < distance_threshold:
+                    blender_bone.use_connect = True
+                elif not bone.is_leaf_bone: # this is a prediction for intermediate bones and not perse correct (make it a setting)
+                    blender_bone.head = bone.absolute_position
+            
+            if not bone.is_leaf_bone:
+                minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.children[0].get_absolute_matrix(), mtr)
+                if minimum_distance is not None and minimum_distance < distance_threshold:
+                    blender_bone.tail = pos1
         
         # root bone is not realy connected. just for general rotations?
         # middle bone with 1 child: then pos is start of bone, and en is probably the next pos
@@ -278,7 +284,10 @@ def import_ske(filepath):
         #bone.blender_bone.matrix =  test2 @ bone.get_absolute_matrix() @ test
         
     bpy.ops.object.mode_set(mode='OBJECT')
-    armature.data.display_type = 'STICK'
+    if debug:
+        armature.data.display_type = 'STICK'
+    else:
+        armature.data.display_type = 'OCTAHEDRAL'
     
     #convert_from_right_to_left_coordinate_system(armature)
 
