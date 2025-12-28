@@ -38,6 +38,11 @@ def bf42_writeTGAHeader(f, width, height, bitDepth=24):
     
     
 def bf42_TGA_substract(pathCombined, pathDiffuse, pathGenerated):
+    """
+    In bf1942 a complete white texture will multiply the rgb value of the diffuse texture by 2.
+    A complete gray (255/2) texture will result in the diffuse texture being displayed without any 'scaling' of the intensity.
+    Example: if the combined texture is 150 where the diffuse is 100 the generated will be: 150% thus 191 (which is 150% of 255)
+    """
     for file in os.listdir(pathCombined):
         if file.lower().endswith(".tga"):
             fileName = os.path.basename(file).split(".",1)[0]

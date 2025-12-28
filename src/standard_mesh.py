@@ -837,6 +837,7 @@ def bf42_import_sm_debug(path):
         f.close()
 
 def bf42_import_sm(path, add_BoundingBox, add_Collision, add_Visible, add_only_main_LOD, add_Shadow, merge_shared_verticies, face_merge_mode, sceneScale, name = None):
+    print("########### start Import #######")
     if name == None:
         filePath = os.path.splitext(bpy.path.basename(path))[0]
     else:
