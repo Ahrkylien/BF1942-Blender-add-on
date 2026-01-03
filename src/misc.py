@@ -348,7 +348,7 @@ def bf42_getGeometryName(data, object_template_name, mesh_name=None):
         return
     
     geometries_and_pos = bf42_listAllGeometries(object_template)[0]
-    geometries = set([g[0] for g in geometries_and_pos])
+    geometries = list(set([g[0] for g in geometries_and_pos]))
     
     if len(geometries) == 0:
         print(f"Error: ObjectTemplate has not geometries ({object_template_name})")
@@ -356,7 +356,7 @@ def bf42_getGeometryName(data, object_template_name, mesh_name=None):
     
     # Only one mesh in ObjecteTemplate is expected
     if mesh_name is None:
-        if len(geometries) > 0:
+        if len(geometries) > 1:
             print(f"Error: ObjectTemplate has multiple geometries ({object_template_name})")
             return
         return geometries[0].name
