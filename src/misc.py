@@ -3,7 +3,7 @@ import os
 from math import pi
 import pickle
 
-from .bf42_script import bf42_vec3
+from .bf42_script import bf42_vec3, bf42_listAllGeometries
 
 
 #method to store objects as strings:
@@ -339,3 +339,36 @@ def bf42_addMultiMeshObject(collection, object, location = [0,0,0], rotation = [
     new_object.rotation_mode = "YXZ"
     return(collection)
 
+# Light map export:
+def bf42_getGeometryName(data, object_template_name, mesh_name=None):
+    object_template = data.getObjectTemplate(object_template_name)
+    
+    if object_template is None:
+        print(f"Error: Can't find object template {object_template_name}")
+        return
+    
+    geometries_and_pos = bf42_listAllGeometries(object_template)[0]
+    geometries = set([g[0] for g in geometries_and_pos])
+    
+    if len(geometries) == 0:
+        print(f"Error: ObjectTemplate has not geometries ({object_template_name})")
+        return
+    
+    # Only one mesh in ObjecteTemplate is expected
+    if mesh_name is None:
+        if len(geometries) > 0:
+            print(f"Error: ObjectTemplate has multiple geometries ({object_template_name})")
+            return
+        return geometries[0].name
+    
+    matching_geometries = [g for g in geometries if g.file.split("/").pop().lower() == mesh_name.lower()]
+    
+    if len(matching_geometries) == 0:
+        print(f"Error: Can't find geometry template {object_template_name}->{mesh_name}")
+        return
+    
+    if len(matching_geometries) == 0:
+        print(f"Error: The current version of this addon doesnt support a ObjectTemplate using the same mesh via different GeometryTemplates ({object_template_name}->{mesh_name})")
+        return
+    
+    return matching_geometries[0].name

@@ -262,7 +262,7 @@ class BF1942_ReadConFiles(Operator):
         ObjectTemplateList = []
         for objectTemplate in data.objectTemplates:
             meshList = bf42_listAllGeometries(objectTemplate)
-            ObjectTemplateList.append((objectTemplate.name,objectTemplate.type,len(meshList[0])))
+            ObjectTemplateList.append((objectTemplate.name, objectTemplate.type, len(meshList[0])))
         BF1942Settings.ObjectTemplateList = dumps(ObjectTemplateList)
         
         #fill TextureDirList:
@@ -313,7 +313,7 @@ class BF1942_ImportHeightMapLevel(Operator):
 class BF1942_ImportLevelMeshes(Operator):
     """An Operator for the BF1942 addon"""
     bl_idname = "bf1942.importlevelmeshes"
-    bl_label = "Import Mehes for Level"
+    bl_label = "Import Meshes for Level"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -508,6 +508,7 @@ class BF1942_ExportLightMaps(Operator):
         sceneScale = BF1942Settings.sceneScale
         ExportLightMapOptions = BF1942Settings.ExportLightMapOptions
         ExportLightMapSize = BF1942Settings.ExportLightMapSize
+        data = BF42_data().loads(BF1942Settings.AllBF42Data)
         
         if BF1942Settings.ExportLightMapDirBool:
             path = bpy.path.abspath(BF1942Settings.LightMapDir)
@@ -521,22 +522,47 @@ class BF1942_ExportLightMaps(Operator):
                 return {'CANCELLED'}
         
         StaticObject_objects = bf42_getStaticObjectsCollection().objects
-        # StaticObject_objects = zip(StaticObject_collection.children, StaticObject_collection.objects)
-        #duplicate all objects and their children:
+        # duplicate all objects and their children:
         objects = []
+        objects_hidden_from_render=[]
         for object in StaticObject_objects:
             if object.instance_type == 'COLLECTION':
                 if object.instance_collection != None:
                     for child in object.instance_collection.objects:
-                        objects.append(bf42_duplicateSpecialObject(child))
-                        objects[-1].location =  bf42_getPosition(child).rotate(bf42_getRotation(object)).add(bf42_getPosition(object)).toBlend()
-                        bf42_applyRotation(objects[-1], bf42_getRotation(object).add(bf42_getRotation(child)))
+                        # Skip tree meshes. (would be cleaner to check collection..)
+                        if not revomeBlenderSuffix(child.name).endswith("LOD1"):
+                            continue
+                        duplicated_object = bf42_duplicateSpecialObject(child)
+                        object_template_name = revomeBlenderSuffix(object.name)
+                        mesh_name = removesuffix(revomeBlenderSuffix(child.name), "_LOD1")
+                        geometry_name = bf42_getGeometryName(data, object_template_name, mesh_name)
+                        if geometry_name is None:
+                            continue
+                        duplicated_object.location =  bf42_getPosition(child).rotate(bf42_getRotation(object)).add(bf42_getPosition(object)).toBlend()
+                        bf42_applyRotation(duplicated_object, bf42_getRotation(object).add(bf42_getRotation(child)))
+                        objects.append((duplicated_object, geometry_name))
+                        # Hide src object from bake render:
+                        if child.hide_render == False:
+                            objects_hidden_from_render.append(child)
+                            child.hide_render = True
             else:
-                objects.append(bf42_duplicateSpecialObject(object))
-        bf42_toggle_hide_static_objects(True)
-        light_map_export(StaticObject_objects, path, sceneScale, ExportLightMapOptions, ExportLightMapSize)
-        bf42_toggle_hide_static_objects(False)
-        for object in objects:
+                # Use the data (mesh) name. Which is shared with the original object to filter out treemeshes.
+                if not revomeBlenderSuffix(object.data.name).endswith("LOD1"):
+                    continue
+                duplicated_object = bf42_duplicateSpecialObject(object)
+                object_template_name = revomeBlenderSuffix(object.name)
+                geometry_name = bf42_getGeometryName(data, object_template_name)
+                if geometry_name is None:
+                    continue
+                objects.append((duplicated_object, geometry_name))
+                # Hide src object from bake render:
+                if object.hide_render == False:
+                    objects_hidden_from_render.append(object)
+                    object.hide_render = True
+        light_map_export(objects, path, sceneScale, ExportLightMapOptions, ExportLightMapSize)
+        for object in objects_hidden_from_render:
+            object.hide_render = False
+        for (object, name) in objects:
             bpy.data.objects.remove(object)
         return {'FINISHED'}
 class BF1942_TextureSubstract(Operator):

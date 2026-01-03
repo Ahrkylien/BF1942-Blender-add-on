@@ -1,6 +1,6 @@
 import bpy
 
-from .bf42_script import bf42_vec3, bf42_is_linked, bf42_listAllGeometries, bf42_listAllGeometries_new
+from .bf42_script import bf42_vec3, bf42_is_linked, bf42_listAllGeometries
 from .area_object import bf42_importAreaObject
 from .import_geometry import bf42_importGeometry
 from .misc import *
@@ -14,7 +14,7 @@ def bf42_placeObject(objectTemplate, sceneScale, base_path, level, bf42_data, po
     MultiMeshObjectsCollection = bf42_getMultiMeshObjectsCollection()
     staticObjectsCollection = bf42_getStaticObjectsCollection()
     if bf42_is_linked(objectTemplate):
-        meshList = bf42_listAllGeometries_new(objectTemplate)
+        meshList = bf42_listAllGeometries(objectTemplate)
         if meshList != [[],[]]:
             if meshList[0] == []: #also check if mesh meshList[0][0] is at 0,0,0!!
                 print("Warning: "+objectTemplate.name+" has no close-LOD Meshes in LodObject!!")

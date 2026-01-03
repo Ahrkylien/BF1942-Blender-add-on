@@ -441,8 +441,8 @@ def bf42_writeStaticCon(path, objects, data):
             f.write("object.rotation "+object.rotation.str()+"\n")
             if bf42_is_linked(object.template):
                 meshes = bf42_listAllGeometries(object.template)
-                for mesh in meshes[0]:
-                    if mesh[1] == "treemesh":
+                for geometry_instance in meshes[0]:
+                    if geometry_instance[0].type.lower() == "treemesh":
                         f.write("object.geometry.scale 1\n")
                         break
             f.write("\n")
@@ -450,33 +450,6 @@ def bf42_writeStaticCon(path, objects, data):
 
 # These functions are for processing in Blender:
 def bf42_listAllGeometries(objectTemplate, pos = None, rot = None, isFarLod = False):
-    # ToDo:
-    # child templates are first moved and then rotated (relative to the parent origin)
-    if pos == None:
-        pos = bf42_vec3((0,0,0))
-    if rot == None:
-        rot = bf42_vec3((0,0,0))
-    list = [[],[]] # [[close LOD] , [far LOD]]
-    if bf42_is_linked(objectTemplate.geometry):
-        geometryTemplate = objectTemplate.geometry
-        if geometryTemplate.file != "":
-            list[1 if isFarLod else 0].append((geometryTemplate.file, geometryTemplate.type, pos, rot))
-    for i, child in enumerate(objectTemplate.childeren):
-        if objectTemplate.type == "lodobject":
-            if not len(objectTemplate.childeren) in [2,3]:
-                print("Error: "+objectTemplate.name+" has wrong number of childeren for LodObject!!")
-            if i == 1:
-                isFarLod = True
-            if i == 2: #dont add destroyed LOD
-                break
-        if bf42_is_linked(child.template):
-            subList = bf42_listAllGeometries(child.template, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod) # can I add rotation vectors?
-            list[0] += subList[0]
-            list[1] += subList[1]
-    return(list)
-# These functions are for processing in Blender:
-
-def bf42_listAllGeometries_new(objectTemplate, pos = None, rot = None, isFarLod = False):
     # ToDo:
     # child templates are first moved and then rotated (relative to the parent origin)
     if pos == None:
@@ -496,10 +469,11 @@ def bf42_listAllGeometries_new(objectTemplate, pos = None, rot = None, isFarLod 
             if i == 2: #dont add destroyed LOD
                 break
         if bf42_is_linked(child.template):
-            subList = bf42_listAllGeometries_new(child.template, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod) # can I add rotation vectors?
+            # can I add rotation vectors?
+            subList = bf42_listAllGeometries(child.template, bf42_vec3_Add(pos, child.setPosition.copy().rotate(rot)), bf42_vec3_Add(rot, child.setRotation), isFarLod)
             list[0] += subList[0]
             list[1] += subList[1]
-    return(list)
+    return list
 
 def bf42_readAllConFiles(base_path,level):
     bf42_data = BF42_data()
