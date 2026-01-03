@@ -350,11 +350,11 @@ def bf42_add_sm_Material(mesh, rs_matterial, name="bf1942_Material", mergeSameMa
         if FILE_PATH != None:
             image = bpy.data.images.load(FILE_PATH, check_existing=True)
             node_texture.image = image
-            new_link = links.new(node_texture.outputs[1],node_principled.inputs[18])
+            links.new(node_texture.outputs["Alpha"], node_principled.inputs["Alpha"])
         else:
             print("texture not found: "+rs_matterial.texture)
-        new_link = links.new(node_UVMap_texture.outputs[0],node_texture.inputs[0])
-        new_link = links.new(node_texture.outputs[0],node_principled.inputs[0])
+        links.new(node_UVMap_texture.outputs["UV"], node_texture.inputs["Vector"])
+        links.new(node_texture.outputs["Color"], node_principled.inputs["Base Color"])
     mesh.materials.append(mat)
     return(mat)
     
