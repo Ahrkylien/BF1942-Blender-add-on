@@ -12,6 +12,8 @@ from .bf42_script import *
 from .light_map import light_map_export
 from .place_object import bf42_placeObject
 from .import_geometry import bf42_importGeometry
+from .import_skeleton import import_ske
+from .import_animation import parse_baf, apply_animation
 from .texture_conversion import *
 from .misc import *
 
@@ -616,8 +618,36 @@ class BF1942_TextureRAWToTGA(Operator):
         BF1942Settings = bpy.context.scene.BF1942Settings
         SourceFile = bpy.path.abspath(BF1942Settings.SourceFile1)
         TargetFile = bpy.path.abspath(BF1942Settings.TargetFile1)
-        
+
         bf42_raw_to_TGA(SourceFile, TargetFile)
+        return {'FINISHED'}
+class BF1942_ImportSKE(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importske"
+    bl_label = "Import BF1942 Skeleton"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        path = bpy.path.abspath(BF1942Settings.ImportSKEFile)
+        import_ske(path, BF1942Settings.SKEUseConnectBones)
+        return {'FINISHED'}
+class BF1942_ImportBAF(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importbaf"
+    bl_label = "Import BF1942 Animation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        BF1942Settings = bpy.context.scene.BF1942Settings
+        path = bpy.path.abspath(BF1942Settings.ImportBAFFile)
+        armature_obj = BF1942Settings.BAFArmature
+        if armature_obj is None:
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+        bones = parse_baf(path)
+        action_name = os.path.splitext(bpy.path.basename(path))[0]
+        apply_animation(armature_obj, bones, action_name)
         return {'FINISHED'}
 
 
@@ -913,6 +943,27 @@ class BF1942_PT_Convert(Panel):
         box.prop(settings, 'SourceFile1', text="Raw")
         box.prop(settings, 'TargetFile1', text="TGA")
         box.operator("bf1942.texturerawtotga", text="Convert")
+
+class BF1942_PT_ImportAnimation(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Import Skeleton/Animation"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        settings = context.scene.BF1942Settings
+        layout = self.layout
+
+        col = layout.column(align=True)
+        col.prop(settings, 'ImportSKEFile', text='SKE File')
+        col.prop(settings, 'SKEUseConnectBones', text='Connect Bones')
+        col.operator("bf1942.importske", text="Import Skeleton")
+
+        col.separator()
+        col.prop(settings, 'ImportBAFFile', text='BAF File')
+        col.prop(settings, 'BAFArmature', text='Armature')
+        col.operator("bf1942.importbaf", text="Import Animation")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -1245,6 +1296,13 @@ class BF1942Settings(PropertyGroup):
     ObjectTemplateList : StringProperty(default = "80034e2e") #None, pickle and hex encoded
     SelectedObject : PointerProperty(type=bpy.types.Object)
     
+    ################# .ske / .baf import settings ###################
+
+    ImportSKEFile : StringProperty(name="ImportSKEFile", default="", subtype="FILE_PATH")
+    SKEUseConnectBones : BoolProperty(name="Connect Bones", description="Connect bones whose head lies on the parent bone", default=False)
+    ImportBAFFile : StringProperty(name="ImportBAFFile", default="", subtype="FILE_PATH")
+    BAFArmature : PointerProperty(type=bpy.types.Object)
+
     ################# texture conversion ###################
     SourceDir1a : StringProperty(name = "SourceDir1a", default = "", subtype="DIR_PATH")
     SourceDir1b : StringProperty(name = "SourceDir1b", default = "", subtype="DIR_PATH")

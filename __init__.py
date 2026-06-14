@@ -36,6 +36,10 @@ classes = (
     BF1942_ExportTM,
     BF1942_PT_ImportTM,
     BF1942_PT_ExportTM,
+
+    BF1942_ImportSKE,
+    BF1942_ImportBAF,
+    BF1942_PT_ImportAnimation,
     
     BF1942_ReadConFiles,
     BF1942_SelectLevel,
@@ -53,7 +57,7 @@ classes = (
     BF1942_TextureAverage,
     BF1942_TextureRAWToTGA,
     BF1942_PT_Convert,
-    
+
     BF1942_PT_material,
     
     BF1942AddonPreferences,

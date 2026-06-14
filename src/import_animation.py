@@ -173,19 +173,3 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
     print(f"Applied {num_frames} frames to '{armature_obj.name}'")
 
 
-# ---------------------------------------------------------------------------
-# Test entry point — edit paths and armature name as needed
-# ---------------------------------------------------------------------------
-
-BAF_FILE  = r"D:\MOD\Battlefield 1942 extracted (orid)\animations\StandWalkRun\LowerBody\3PJumpStandLower.baf"
-ARMATURE_NAME = "UsSoldier"
-
-bones = parse_baf(BAF_FILE)
-
-armature = bpy.data.objects.get(ARMATURE_NAME)
-if not armature:
-    raise Exception(f"Armature '{ARMATURE_NAME}' not found in scene")
-
-import os
-action_name = os.path.splitext(os.path.basename(BAF_FILE))[0]
-apply_animation(armature, bones, action_name)

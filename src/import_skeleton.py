@@ -185,4 +185,3 @@ def import_ske(filepath, use_connect_bones=False):
     armature.data.display_type = 'OCTAHEDRAL'
 
 
-import_ske(r"D:\MOD\Battlefield 1942 extracted (orid)\animations\UsSoldier.ske")
