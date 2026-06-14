@@ -1,8 +1,11 @@
 import bpy
 import struct
-from collections import namedtuple
-from mathutils import Quaternion, Vector, Matrix, Euler
 import math
+from mathutils import Quaternion, Vector, Matrix
+
+# Must match the ROT_FIX used in import_skeleton.py
+ROT_FIX = Matrix.Rotation(-math.pi / 2, 4, 'Z')
+ROT_FIX_INV = ROT_FIX.inverted()
 
 def read_float(file):
     return struct.unpack('<f', file.read(4))[0]
@@ -22,10 +25,6 @@ def read_uint32(file):
 def read_string(file, length):
     return file.read(length).decode('utf-8')
 
-def read_half_float(file):
-    """Read 2 bytes and unpack as float16"""
-    return struct.unpack('<e', file.read(2))[0]
-
 def read_16bit_fixed_point_float(file, precision_bits):
     """
     Reads a 16-bit value from file and decodes it as a float using a custom mantissa precision.
@@ -44,259 +43,149 @@ def read_16bit_fixed_point_float(file, precision_bits):
 
 def tell_remaining_length(file):
     current_pos = file.tell()
-    file.seek(0, 2)  # Seek to end of file
+    file.seek(0, 2)
     end_pos = file.tell()
-    file.seek(current_pos)  # Go back to where you were
+    file.seek(current_pos)
     return end_pos - current_pos
 
-
-def get_local_matrix(bone):
-    return bone.matrix if bone.parent is None else bone.parent.matrix.inverted() @ bone.matrix
 
 class Bf1942Bone:
     def __init__(self, name):
         self.name = name
-        self.frames = []
+        self.frames = []  # list of (Quaternion, Vector) per frame
 
 
 def parse_baf(filepath):
     bones = []
     with open(filepath, 'rb') as file:
-        # Read header and verify version
         header = read_uint32(file)
         if header != 3:
             raise Exception(f"Unsupported .baf version {header}")
-        
-        # Bone names
+
         num_bones = read_uint16(file)
         for _ in range(num_bones):
             name_len = read_uint16(file)
-            name = read_string(file, name_len)[:-1] # zero terminated
+            name = read_string(file, name_len)[:-1]  # zero terminated
             bones.append(Bf1942Bone(name))
-            print(f"name: {name}")
 
-        # Frame and precision
         num_frames = read_uint32(file)
         precision = read_uint8(file)
-        print(f"num_frames: {num_frames}")
-        print(f"precision: {precision}")
+        print(f"num_bones: {num_bones}, num_frames: {num_frames}, precision: {precision}")
 
-        for bone_index in range(num_bones):
-            bone = bones[bone_index]
-            num_data = read_uint16(file)
-
-            bone_frames = [[] for _ in range(7)]  # 4 rotation + 3 position
+        for bone in bones:
+            read_uint16(file)  # num_data (unused)
+            bone_channels = [[] for _ in range(7)]  # channels: x,y,z,w rot + x,y,z pos
 
             for i in range(7):
-                block_data_size = read_uint16(file)  # excluding the first two bytes of the sub-blocks
-                data_left_to_read = block_data_size
-                
-                total_number_of_frames_in_bone = 0
+                block_data_size = read_uint16(file)
+                data_left = block_data_size
+                total_frames = 0
 
-                while data_left_to_read > 0:
+                while data_left > 0:
                     tmp = read_uint8(file)
                     num_frames_in_block = tmp & 0b01111111
                     is_rle = (tmp >> 7) == 1
-                    sub_block_data_size = read_uint8(file)
-                    total_number_of_frames_in_bone += num_frames_in_block
-                    data_left_to_read -= sub_block_data_size
+                    sub_block_size = read_uint8(file)
+                    total_frames += num_frames_in_block
+                    data_left -= sub_block_size
 
                     if is_rle:
                         val = read_16bit_fixed_point_float(file, 15 if i <= 3 else precision)
-                        bone_frames[i].extend([val] * num_frames_in_block)
+                        bone_channels[i].extend([val] * num_frames_in_block)
                     else:
                         for _ in range(num_frames_in_block):
                             val = read_16bit_fixed_point_float(file, 15 if i <= 3 else precision)
-                            bone_frames[i].append(val)
-                
-                if total_number_of_frames_in_bone != num_frames:
-                    raise Exception(f"Bone {bone.name} has {total_number_of_frames_in_bone} frames instead of {num_frames} for float {i}")
-            
-            # Zip 7 separate lists into per-frame data
-            for frame_values in zip(*bone_frames):
-                rot = Quaternion([frame_values[3], frame_values[0], frame_values[1], frame_values[2]])  # blenders Quaternion starts with 'w'
-                pos = Vector(frame_values[4:7])
+                            bone_channels[i].append(val)
+
+                if total_frames != num_frames:
+                    raise Exception(
+                        f"Bone '{bone.name}' channel {i} has {total_frames} frames, expected {num_frames}"
+                    )
+
+            # Channels: [qx, qy, qz, qw, tx, ty, tz]
+            # BF1942 uses row-vector convention (v' = v * M), so the stored quaternion q
+            # represents R_q in engine terms.  In Blender's column-vector convention the
+            # same rotation is R_q^T = R_{conjugate(q)}, so we negate the xyz components.
+            for qx, qy, qz, qw, tx, ty, tz in zip(*bone_channels):
+                rot = Quaternion((qw, -qx, -qy, -qz))  # conjugate for column-vector convention
+                pos = Vector((tx, ty, tz))              # Z-up matches Blender, no swap needed
                 bone.frames.append((rot, pos))
-            
+
         data_left = tell_remaining_length(file)
         if data_left != 0:
-            raise Exception(f"There are {data_left} unexpected bytes remaining at the end of the file")
-        
+            raise Exception(f"{data_left} unexpected bytes remaining at end of file")
 
     return bones
 
 
+def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
+    """Apply parsed .baf animation to an armature object."""
+    armature = armature_obj.data
+    pose_bones = armature_obj.pose.bones
+    rest_bones = armature.bones
 
-bones = parse_baf(r"D:\MOD\Battlefield 1942 extracted (orid)\animations\StandWalkRun\LowerBody\3PJumpStandLower.baf")
+    # Strip ROT_FIX from each bone's rest matrix so we get the raw engine-space
+    # absolute matrix.  The animation data is in that same engine space.
+    rest_matrix = {b.name: b.matrix_local @ ROT_FIX_INV for b in rest_bones}
+
+    if armature_obj.animation_data is None:
+        armature_obj.animation_data_create()
+
+    action = bpy.data.actions.new(action_name)
+    armature_obj.animation_data.action = action
+
+    bpy.context.view_layer.objects.active = armature_obj
+    bpy.ops.object.mode_set(mode='POSE')
+
+    num_frames = len(bones[0].frames)
+
+    for frame_idx in range(num_frames):
+        for bone_data in bones:
+            if bone_data.name not in pose_bones:
+                continue
+
+            pose_bone = pose_bones[bone_data.name]
+            rot, pos = bone_data.frames[frame_idx]
+
+            # Build local-to-parent matrix from animation data
+            anim_local = rot.to_matrix().to_4x4()
+            anim_local.translation = pos
+
+            # Append ROT_FIX so the animated frame matches the fixed bone orientation.
+            # Use the engine-space parent rest matrix (ROT_FIX already stripped above).
+            if pose_bone.bone.parent and pose_bone.bone.parent.name in rest_matrix:
+                arm_matrix = rest_matrix[pose_bone.bone.parent.name] @ anim_local @ ROT_FIX
+            else:
+                arm_matrix = anim_local @ ROT_FIX
+
+            pose_bone.matrix_basis = pose_bone.bone.matrix_local.inverted() @ arm_matrix
+
+        for bone_data in bones:
+            if bone_data.name not in pose_bones:
+                continue
+            pb = pose_bones[bone_data.name]
+            pb.keyframe_insert("rotation_quaternion", frame=frame_idx)
+            pb.keyframe_insert("location", frame=frame_idx)
+
+    bpy.ops.object.mode_set(mode='OBJECT')
+    bpy.context.scene.frame_start = 0
+    bpy.context.scene.frame_end = num_frames - 1
+    print(f"Applied {num_frames} frames to '{armature_obj.name}'")
 
 
-base = 'UsSoldier'
-#base = 'UsSoldierUnConnected'
+# ---------------------------------------------------------------------------
+# Test entry point — edit paths and armature name as needed
+# ---------------------------------------------------------------------------
 
+BAF_FILE  = r"D:\MOD\Battlefield 1942 extracted (orid)\animations\StandWalkRun\LowerBody\3PJumpStandLower.baf"
+ARMATURE_NAME = "UsSoldier"
 
-armature = bpy.data.objects.get(base)
+bones = parse_baf(BAF_FILE)
 
+armature = bpy.data.objects.get(ARMATURE_NAME)
 if not armature:
-    raise Exception("Armature 'UsSoldier' not found")
+    raise Exception(f"Armature '{ARMATURE_NAME}' not found in scene")
 
-# Duplicate the armature
-armature_copy = armature.copy()
-armature_copy.data = armature.data.copy()  # Duplicate the armature's data
-bpy.context.collection.objects.link(armature_copy)  # Link to current collection
-
-# Set the new armature to be the active object
-bpy.context.view_layer.objects.active = armature_copy
-armature_copy.select_set(True)
-
-# Go to Pose mode to manipulate bones
-bpy.ops.object.mode_set(mode='POSE')
-
-pose_bones = armature_copy.pose.bones
-
-for frame_number in range(0, len(bones[0].frames)):
-    #cheat for now:
-    pose_bones_matrix = {}
-
-    # Now iterate over the bones and apply the position and rotation from your parsed data
-    for bone in bones:
-        # Look up the bone by name in the duplicated armature
-        if not bone.name in armature_copy.pose.bones:
-            print(f"Bone '{bone.name}' not found {bone.frames[0][1]}")
-            continue
-        if False and bone.name != "Bip01":
-            continue
-        if False and bone.name == "Bip01 L Calf":
-            break
-        if False and bone.name not in ["Bip01", "Spine Root", "Bip01 Pelvis", "Bip01 L Thigh"]:
-            continue
-        
-        
-        pose_bone = pose_bones[bone.name]
-        
-        # reset frame pose (previous frame pose is current state):
-        pose_bone.location = (0 ,0, 0)
-        pose_bone.rotation_quaternion = (1, 0, 0, 0)
-        
-        # bring to 0,0,0
-        if base == "UsSoldierUnConnected":
-            current_absolute_rotation = pose_bone.matrix.to_quaternion()
-            if pose_bone.parent is not None:
-                current_location = - (current_absolute_rotation.inverted() @ (pose_bone.parent.head - pose_bone.head))
-                parent_absolute_rotation = pose_bone.parent.matrix.to_quaternion()
-                current_rotation = parent_absolute_rotation.rotation_difference(current_absolute_rotation)
-            else:
-                current_location = - (current_absolute_rotation.inverted() @ (-pose_bone.head))
-                current_rotation = current_absolute_rotation
-            pose_bone.location = -current_location
-            pose_bone.rotation_quaternion = current_rotation.inverted()
-        
-            # rotate from y to x
-            #rotation_y_to_x = Quaternion((0, 0, 1), math.radians(-90))
-            #pose_bone.rotation_quaternion = rotation_y_to_x @ pose_bone.rotation_quaternion
-
-        # Get the position and rotation (assuming: frame = (rotation, position))
-        rot, pos = bone.frames[frame_number]
-        
-        rot = Quaternion([-rot.w, rot.x, rot.y, rot.z])
-        pos = Vector([pos.x, pos.y, pos.z])
-        
-        #rot.rotate(Euler((0, 1.5708, 0), 'XYZ'))
-        #if pose_bone.parent is not None:
-        #    pos.rotate(Euler((0, -1.5708, 0), 'XYZ'))
-
-        transformation_matrix_frame = rot.to_matrix().to_4x4()
-        transformation_matrix_frame.translation = pos
-        
-        
-        #transformation_matrix_frame.translation = Vector([local[0][3], local[1][3], local[2][3]])
-        """
-        transformation_matrix_frame = Matrix.Translation([pos[0], pos[1], pos[2]])
-        transformation_matrix_frame = get_local_matrix(pose_bone)
-        transformation_matrix_frame[0][3] = pos[0]
-        transformation_matrix_frame[1][3] = pos[1]
-        transformation_matrix_frame[2][3] = pos[2]
-        """
-        
-        
-        mode = 1
-        
-        #parent_matrix
-        if mode == 1:
-            pose_bone.location += pos
-            pose_bone.rotation_quaternion @= rot
-            #pose_bone.rotation_quaternion = rot @ pose_bone.rotation_quaternion
-        elif mode == 2:
-            if pose_bone.parent is not None:
-                parent = pose_bone.parent
-                parent_matrix = pose_bones_matrix[parent.name]
-                parent_rotation = parent_matrix.to_quaternion()
-                new_absolute_transformation_matrix = parent_matrix @ transformation_matrix_frame
-            else:
-                new_absolute_transformation_matrix = transformation_matrix_frame
-            pose_bone.matrix_basis = transformation_matrix_frame
-            pose_bones_matrix[bone.name] = new_absolute_transformation_matrix
-        elif mode == 3:
-            if pose_bone.parent is not None:
-                parent = pose_bone.parent
-                parent_matrix = pose_bones_matrix[parent.name]
-                parent_rotation = parent_matrix.to_quaternion()
-                new_absolute_transformation_matrix = parent_matrix @ transformation_matrix_frame
-                pose_bone.location = parent_rotation @ pos # without rot this worked
-            else:
-                new_absolute_transformation_matrix = transformation_matrix_frame
-                pose_bone.location = pos # without rot this worked
-            pose_bones_matrix[bone.name] = new_absolute_transformation_matrix
-            
-        elif pose_bone.parent is not None:
-            """
-            mid_point = parent.head
-            direction = (parent.tail - mid_point).normalized()
-            x_axis = Vector((1, 0, 0))
-            quat = x_axis.rotation_difference(direction)
-            rot_matrix = quat.to_matrix().to_4x4()
-            trans_matrix = Matrix.Translation(mid_point)
-            parent_matrix = trans_matrix @ rot_matrix
-            """
-            
-            print(f"{bone.name}:\n{rot}\n{pos}\n{transformation_matrix_frame}\n{parent_matrix}")
-            # pose_bone.location = parent_rotation @ pos # without rot this worked
-            #pose_bone.location = pos
-            #pose_bone.rotation_quaternion = rot
-            pose_bone.matrix_basis = transformation_matrix_frame
-            #pose_bone.tail = new_absolute_transformation_matrix @ Vector((0.08, 0, 0))
-            pose_bones_matrix[bone.name] = new_absolute_transformation_matrix
-        else:
-            
-            print(f"{bone.name}:\n{rot}\n{pos}\n{transformation_matrix_frame}")
-            pose_bone.matrix_basis = transformation_matrix_frame
-            #pose_bone.tail = new_absolute_transformation_matrix @ Vector((0.08, 0, 0))
-            pose_bones_matrix[bone.name] = transformation_matrix_frame
-        
-        #pose_bone.matrix = new_absolute_transformation_matrix
-        #pose_bone.rotation_quaternion = rot
-
-        # Apply the position (set the bone's head to the position)
-        #pose_bone.location = pos  # This sets the position in local space (relative to parent)
-
-        #pose_bone.rotation_quaternion = rot  # Set quaternion rotation directly
-
-
-    # fix rotations:
-    if base != "UsSoldierUnConnected":
-        for bone in pose_bones:
-            if bone.parent:
-                rotation = Quaternion((0, 0, 1), math.radians(90))
-                bone.location = rotation @ bone.location
-                bone.rotation_quaternion = rotation @ bone.rotation_quaternion
-            local_z_axis = bone.rotation_quaternion @ Vector((0, 0, 1))
-            rotation = Quaternion(local_z_axis, math.radians(-90))
-            bone.rotation_quaternion = rotation @ bone.rotation_quaternion
-
-    for bone in pose_bones:
-        bone.keyframe_insert("rotation_quaternion", frame=frame_number)
-        bone.keyframe_insert("location", frame=frame_number)
-
-
-bpy.context.view_layer.update()
-# Return to Object Mode after editing
-bpy.ops.object.mode_set(mode='OBJECT')
+import os
+action_name = os.path.splitext(os.path.basename(BAF_FILE))[0]
+apply_animation(armature, bones, action_name)
