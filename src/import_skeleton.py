@@ -72,7 +72,6 @@ def read_bones_from_ske(filepath):
             raise Exception(f"Unsupported .ske version {header}")
 
         num_bones = read_uint32(file)
-        print(f"Number of bones: {num_bones}")
 
         for i in range(num_bones):
             name_length = read_uint16(file)
@@ -134,10 +133,14 @@ def get_minimum_distance_between_lines(matrix1, matrix2):
     return None, None, None
 
 
-def import_ske(filepath, use_connect_bones=False):
-    distance_threshold = 0.001
+def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
+    distance_threshold = 0.001 * scene_scale
 
     bones = read_bones_from_ske(filepath)
+    for bone in bones:
+        bone.matrix[0][3] *= scene_scale
+        bone.matrix[1][3] *= scene_scale
+        bone.matrix[2][3] *= scene_scale
 
     object_name = os.path.splitext(bpy.path.basename(filepath))[0]
 
@@ -163,7 +166,7 @@ def import_ske(filepath, use_connect_bones=False):
             eb.parent = bone.parent.blender_bone
 
         eb.head = mtr.translation
-        eb.tail = mtr @ Vector((0.03, 0, 0))
+        eb.tail = mtr @ Vector((0.03 * scene_scale, 0, 0))
 
         if use_connect_bones and not bone.is_root:
             parent_eb = bone.parent.blender_bone
@@ -183,5 +186,6 @@ def import_ske(filepath, use_connect_bones=False):
 
     bpy.ops.object.mode_set(mode='OBJECT')
     armature.data.display_type = 'OCTAHEDRAL'
+    return armature
 
 

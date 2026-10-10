@@ -54,6 +54,19 @@ def revomeBlenderSuffix(name):
             name = nameL[0]
     return(name)
 
+def get_armature_actions(armature_obj):
+    if not armature_obj.animation_data or not armature_obj.animation_data.action:
+        return []
+    bone_names = {b.name for b in armature_obj.data.bones}
+    result = []
+    for action in bpy.data.actions:
+        for fc in action.fcurves:
+            if fc.data_path.startswith('pose.bones["'):
+                if fc.data_path.split('"')[1] in bone_names:
+                    result.append(action)
+                    break
+    return result
+
 def bf42_get_object(collection, name):
     object = collection.objects.get(name)
     if object != None:

@@ -70,7 +70,6 @@ def parse_baf(filepath):
 
         num_frames = read_uint32(file)
         precision = read_uint8(file)
-        print(f"num_bones: {num_bones}, num_frames: {num_frames}, precision: {precision}")
 
         for bone in bones:
             read_uint16(file)  # num_data (unused)
@@ -108,7 +107,7 @@ def parse_baf(filepath):
             # same rotation is R_q^T = R_{conjugate(q)}, so we negate the xyz components.
             for qx, qy, qz, qw, tx, ty, tz in zip(*bone_channels):
                 rot = Quaternion((qw, -qx, -qy, -qz))  # conjugate for column-vector convention
-                pos = Vector((tx, ty, tz))              # Z-up matches Blender, no swap needed
+                pos = Vector((tx, ty, tz))  # Z-up matches Blender, no swap needed
                 bone.frames.append((rot, pos))
 
         data_left = tell_remaining_length(file)
@@ -118,7 +117,7 @@ def parse_baf(filepath):
     return bones
 
 
-def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
+def apply_animation(armature_obj, bones, action_name="BF1942Anim", scene_scale=1.0):
     """Apply parsed .baf animation to an armature object."""
     armature = armature_obj.data
     pose_bones = armature_obj.pose.bones
@@ -132,6 +131,7 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
         armature_obj.animation_data_create()
 
     action = bpy.data.actions.new(action_name)
+    action.use_fake_user = True
     armature_obj.animation_data.action = action
 
     bpy.context.view_layer.objects.active = armature_obj
@@ -149,7 +149,7 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
 
             # Build local-to-parent matrix from animation data
             anim_local = rot.to_matrix().to_4x4()
-            anim_local.translation = pos
+            anim_local.translation = pos * scene_scale
 
             # Append ROT_FIX so the animated frame matches the fixed bone orientation.
             # Use the engine-space parent rest matrix (ROT_FIX already stripped above).
@@ -168,8 +168,8 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim"):
             pb.keyframe_insert("location", frame=frame_idx)
 
     bpy.ops.object.mode_set(mode='OBJECT')
-    bpy.context.scene.frame_start = 0
-    bpy.context.scene.frame_end = num_frames - 1
-    print(f"Applied {num_frames} frames to '{armature_obj.name}'")
+    scene = bpy.context.scene
+    scene.frame_start = min(scene.frame_start, 0)
+    scene.frame_end = max(scene.frame_end, num_frames - 1)
 
 

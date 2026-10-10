@@ -14,6 +14,8 @@ from .place_object import bf42_placeObject
 from .import_geometry import bf42_importGeometry
 from .import_skeleton import import_ske
 from .import_animation import parse_baf, apply_animation
+from .export_skeleton import export_ske
+from .export_animation import export_baf
 from .texture_conversion import *
 from .misc import *
 
@@ -225,6 +227,14 @@ class BF1942_ExportTM(Operator):
         bf42_export_tm(dir, name, COL_object, Branch_object, Trunk_object, Sprite_object, materialID, AngleCount, applyTrans, smoothShadingMode, sceneScale)
         return {'FINISHED'}
 #### Level Editing: ####
+def BAFActionsCallback(self, context):
+    armature_obj = self.BAFExportArmature
+    if armature_obj:
+        items = [(a.name, a.name, "") for a in get_armature_actions(armature_obj)]
+    else:
+        items = [(a.name, a.name, "") for a in bpy.data.actions]
+    return items if items else [("NONE", "(none)", "")]
+
 def LevelListCallback(self, context):
     return [(item, item,"") for i, item in enumerate(loads(bpy.context.scene.BF1942Settings.LevelList))]
 class BF1942_SelectLevel(Operator):
@@ -627,10 +637,17 @@ class BF1942_ImportSKE(Operator):
     bl_label = "Import BF1942 Skeleton"
     bl_options = {'REGISTER', 'UNDO'}
 
+    filepath: StringProperty(subtype="FILE_PATH")
+    filter_glob: StringProperty(default="*.ske", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
     def execute(self, context):
-        BF1942Settings = bpy.context.scene.BF1942Settings
-        path = bpy.path.abspath(BF1942Settings.ImportSKEFile)
-        import_ske(path, BF1942Settings.SKEUseConnectBones)
+        settings = context.scene.BF1942Settings
+        armature = import_ske(self.filepath, settings.SKEUseConnectBones, settings.sceneScale)
+        settings.BAFImportArmature = armature
         return {'FINISHED'}
 class BF1942_ImportBAF(Operator):
     """An Operator for the BF1942 addon"""
@@ -638,16 +655,70 @@ class BF1942_ImportBAF(Operator):
     bl_label = "Import BF1942 Animation"
     bl_options = {'REGISTER', 'UNDO'}
 
+    filepath: StringProperty(subtype="FILE_PATH")
+    filter_glob: StringProperty(default="*.baf", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
     def execute(self, context):
-        BF1942Settings = bpy.context.scene.BF1942Settings
-        path = bpy.path.abspath(BF1942Settings.ImportBAFFile)
-        armature_obj = BF1942Settings.BAFArmature
+        settings = context.scene.BF1942Settings
+        armature_obj = settings.BAFImportArmature
         if armature_obj is None:
             self.report({'ERROR'}, "No armature selected")
             return {'CANCELLED'}
-        bones = parse_baf(path)
-        action_name = os.path.splitext(bpy.path.basename(path))[0]
-        apply_animation(armature_obj, bones, action_name)
+        bones = parse_baf(self.filepath)
+        action_name = os.path.splitext(bpy.path.basename(self.filepath))[0]
+        apply_animation(armature_obj, bones, action_name, settings.sceneScale)
+        return {'FINISHED'}
+class BF1942_ExportSKE(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportske"
+    bl_label = "Export BF1942 Skeleton"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.BF1942Settings
+        armature_obj = settings.BAFExportArmature
+        if armature_obj is None:
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+        folder = bpy.path.abspath(settings.SKEExportDir)
+        name = settings.SKEExportName or revomeBlenderSuffix(armature_obj.name)
+        export_ske(os.path.join(folder, name + ".ske"), armature_obj, settings.sceneScale)
+        return {'FINISHED'}
+class BF1942_ExportBAF(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportbaf"
+    bl_label = "Export BF1942 Animation"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        armature_obj = context.scene.BF1942Settings.BAFExportArmature
+        return bool(armature_obj and get_armature_actions(armature_obj))
+
+    def execute(self, context):
+        settings = context.scene.BF1942Settings
+        armature_obj = settings.BAFExportArmature
+        if armature_obj is None:
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+        folder = bpy.path.abspath(settings.BAFExportDir)
+        if not folder:
+            self.report({'ERROR'}, "No export folder selected")
+            return {'CANCELLED'}
+        scene_scale = settings.sceneScale
+        if settings.BAFExportAllActions:
+            for action in get_armature_actions(armature_obj):
+                export_baf(os.path.join(folder, revomeBlenderSuffix(action.name) + ".baf"), armature_obj, action, scene_scale)
+        else:
+            action = bpy.data.actions.get(settings.BAFExportAction)
+            if action is None:
+                self.report({'ERROR'}, "No action selected")
+                return {'CANCELLED'}
+            export_baf(os.path.join(folder, revomeBlenderSuffix(action.name) + ".baf"), armature_obj, action, scene_scale)
         return {'FINISHED'}
 
 
@@ -956,14 +1027,58 @@ class BF1942_PT_ImportAnimation(Panel):
         layout = self.layout
 
         col = layout.column(align=True)
-        col.prop(settings, 'ImportSKEFile', text='SKE File')
         col.prop(settings, 'SKEUseConnectBones', text='Connect Bones')
-        col.operator("bf1942.importske", text="Import Skeleton")
+        col.operator("bf1942.importske", text="Import skeleton (.ske)")
 
-        col.separator()
-        col.prop(settings, 'ImportBAFFile', text='BAF File')
-        col.prop(settings, 'BAFArmature', text='Armature')
-        col.operator("bf1942.importbaf", text="Import Animation")
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(settings, 'BAFImportArmature', text='Armature')
+        col.operator("bf1942.importbaf", text="Import animation (.baf)")
+
+class BF1942_PT_ExportAnimation(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_context = "objectmode"
+    bl_region_type = "UI"
+    bl_label = "Export Skeleton/Animation"
+    bl_category = "BF1942"
+
+    def draw(self, context):
+        settings = context.scene.BF1942Settings
+        layout = self.layout
+
+        layout.prop(settings, 'BAFExportArmature', text='Armature')
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(settings, 'SKEExportDir', text='Folder')
+        col.prop(settings, 'SKEExportName', text='Name')
+        col.operator("bf1942.exportske", text="Export skeleton (.ske)")
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(settings, 'BAFExportAllActions', text='Export all actions')
+        col.prop(settings, 'BAFExportDir', text='Folder')
+
+        armature_obj = settings.BAFExportArmature
+        matching = get_armature_actions(armature_obj) if armature_obj else []
+
+        if armature_obj and len(matching) == 0:
+            row = col.row()
+            row.alert = True
+            row.label(text="No animations found", icon='ERROR')
+        elif settings.BAFExportAllActions and matching:
+            box = col.box()
+            list_col = box.column(align=True)
+            list_col.scale_y = 0.7
+            for action in matching:
+                list_col.label(text=revomeBlenderSuffix(action.name))
+        elif not settings.BAFExportAllActions:
+            col.prop(settings, 'BAFExportAction', text='Action')
+
+        col.operator("bf1942.exportbaf", text="Export animation (.baf)")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -1298,10 +1413,14 @@ class BF1942Settings(PropertyGroup):
     
     ################# .ske / .baf import settings ###################
 
-    ImportSKEFile : StringProperty(name="ImportSKEFile", default="", subtype="FILE_PATH")
     SKEUseConnectBones : BoolProperty(name="Connect Bones", description="Connect bones whose head lies on the parent bone", default=False)
-    ImportBAFFile : StringProperty(name="ImportBAFFile", default="", subtype="FILE_PATH")
-    BAFArmature : PointerProperty(type=bpy.types.Object)
+    BAFImportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
+    BAFExportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
+    SKEExportDir : StringProperty(name="SKEExportDir", default="", subtype="DIR_PATH")
+    SKEExportName : StringProperty(name="SKEExportName", default="")
+    BAFExportAllActions : BoolProperty(name="Export all actions", default=True)
+    BAFExportAction : EnumProperty(items=BAFActionsCallback, name="Action")
+    BAFExportDir : StringProperty(name="BAFExportDir", default="", subtype="DIR_PATH")
 
     ################# texture conversion ###################
     SourceDir1a : StringProperty(name = "SourceDir1a", default = "", subtype="DIR_PATH")
