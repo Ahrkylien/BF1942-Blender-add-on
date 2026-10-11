@@ -1,11 +1,14 @@
 import bpy
-import struct
 import math
-from mathutils import Quaternion, Vector, Matrix
+import struct
+from mathutils import Matrix, Quaternion, Vector
 
-# Must match the ROT_FIX used in import_skeleton.py
 ROT_FIX = Matrix.Rotation(-math.pi / 2, 4, 'Z')
-ROT_FIX_INV = ROT_FIX.inverted()
+# Engine bone-local frame -> Blender bone-local frame (Y↔Z world swap, then ROT_FIX).
+BONE_FRAME = Matrix(((1, 0, 0), (0, 0, 1), (0, 1, 0))).to_4x4() @ ROT_FIX
+BONE_FRAME_INV = BONE_FRAME.inverted()
+# Must match the Bip01 root turn in import_skeleton.py.
+PLAYER_WORLD_FIX = Matrix.Rotation(-math.pi / 2, 4, 'X')
 
 def read_float(file):
     return struct.unpack('<f', file.read(4))[0]
@@ -101,13 +104,11 @@ def parse_baf(filepath):
                         f"Bone '{bone.name}' channel {i} has {total_frames} frames, expected {num_frames}"
                     )
 
-            # Channels: [qx, qy, qz, qw, tx, ty, tz]
-            # BF1942 uses row-vector convention (v' = v * M), so the stored quaternion q
-            # represents R_q in engine terms.  In Blender's column-vector convention the
-            # same rotation is R_q^T = R_{conjugate(q)}, so we negate the xyz components.
+            # Channels: [qx, qy, qz, qw, tx, ty, tz] in engine space.
+            # The stored quaternion uses row-vector convention, so its conjugate is the column-vector rotation.
             for qx, qy, qz, qw, tx, ty, tz in zip(*bone_channels):
-                rot = Quaternion((qw, -qx, -qy, -qz))  # conjugate for column-vector convention
-                pos = Vector((tx, ty, tz))  # Z-up matches Blender, no swap needed
+                rot = Quaternion((qw, -qx, -qy, -qz))
+                pos = Vector((tx, ty, tz))
                 bone.frames.append((rot, pos))
 
         data_left = tell_remaining_length(file)
@@ -121,11 +122,6 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim", scene_scale=1
     """Apply parsed .baf animation to an armature object."""
     armature = armature_obj.data
     pose_bones = armature_obj.pose.bones
-    rest_bones = armature.bones
-
-    # Strip ROT_FIX from each bone's rest matrix so we get the raw engine-space
-    # absolute matrix.  The animation data is in that same engine space.
-    rest_matrix = {b.name: b.matrix_local @ ROT_FIX_INV for b in rest_bones}
 
     if armature_obj.animation_data is None:
         armature_obj.animation_data_create()
@@ -138,6 +134,8 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim", scene_scale=1
     bpy.ops.object.mode_set(mode='POSE')
 
     num_frames = len(bones[0].frames)
+    is_player = any(b.parent is None and b.name.lower() == "bip01" for b in armature.bones)
+    root_frame = PLAYER_WORLD_FIX @ ROT_FIX if is_player else ROT_FIX
 
     for frame_idx in range(num_frames):
         for bone_data in bones:
@@ -147,18 +145,14 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim", scene_scale=1
             pose_bone = pose_bones[bone_data.name]
             rot, pos = bone_data.frames[frame_idx]
 
-            # Build local-to-parent matrix from animation data
-            anim_local = rot.to_matrix().to_4x4()
-            anim_local.translation = pos * scene_scale
+            engine_local = rot.to_matrix().to_4x4()
+            engine_local.translation = pos * scene_scale
+            local = BONE_FRAME_INV @ engine_local @ BONE_FRAME
 
-            # Append ROT_FIX so the animated frame matches the fixed bone orientation.
-            # Use the engine-space parent rest matrix (ROT_FIX already stripped above).
-            if pose_bone.bone.parent and pose_bone.bone.parent.name in rest_matrix:
-                arm_matrix = rest_matrix[pose_bone.bone.parent.name] @ anim_local @ ROT_FIX
-            else:
-                arm_matrix = anim_local @ ROT_FIX
-
-            pose_bone.matrix_basis = pose_bone.bone.matrix_local.inverted() @ arm_matrix
+            # Roots have no parent bone; their parent frame is the rig's world frame, not identity.
+            rest_bone = pose_bone.bone
+            parent_rest = rest_bone.parent.matrix_local if rest_bone.parent else root_frame
+            pose_bone.matrix_basis = rest_bone.matrix_local.inverted() @ parent_rest @ local
 
         for bone_data in bones:
             if bone_data.name not in pose_bones:

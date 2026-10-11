@@ -8,6 +8,8 @@ from mathutils import Matrix, Vector
 # Rotating -90° around Z maps local-X → local-Y, aligning the bone direction.
 # This constant is also used by import_animation.py — keep them in sync.
 ROT_FIX = Matrix.Rotation(-math.pi / 2, 4, 'Z')
+# A player skeleton's Bip01 root is turned -90° about X so the character stands upright.
+PLAYER_WORLD_FIX = Matrix.Rotation(-math.pi / 2, 3, 'X')
 
 def read_float(file):
     return struct.unpack('<f', file.read(4))[0]
@@ -142,6 +144,12 @@ def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
         bone.matrix[1][3] *= scene_scale
         bone.matrix[2][3] *= scene_scale
 
+    is_player = any(bone.is_root and bone.name.lower() == "bip01" for bone in bones)
+    world = PLAYER_WORLD_FIX if is_player else Matrix.Identity(3)
+
+    def to_blender(v):
+        return world @ Vector((v.x, v.z, v.y))
+
     object_name = os.path.splitext(bpy.path.basename(filepath))[0]
 
     if bpy.context.mode != 'OBJECT':
@@ -165,24 +173,20 @@ def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
         if bone.parent is not None:
             eb.parent = bone.parent.blender_bone
 
-        eb.head = mtr.translation
-        eb.tail = mtr @ Vector((0.03 * scene_scale, 0, 0))
+        eb.head = to_blender(mtr.translation)
+        eb.tail = to_blender(mtr @ Vector((0.03 * scene_scale, 0, 0)))
 
         if use_connect_bones and not bone.is_root:
             parent_eb = bone.parent.blender_bone
-            if is_point_on_segment(mtr.translation, parent_eb.head, parent_eb.tail, distance_threshold):
+            if is_point_on_segment(to_blender(mtr.translation), parent_eb.head, parent_eb.tail, distance_threshold):
                 eb.use_connect = True
 
         if not bone.is_leaf_bone:
             minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.children[0].get_absolute_matrix(), mtr)
             if minimum_distance is not None and minimum_distance < distance_threshold:
-                eb.tail = pos1
+                eb.tail = to_blender(pos1)
 
-        # Set roll so bone Z = mtr.col[2].
-        # Since bone Y is already along mtr.col[0] (from head/tail above), this makes
-        # bone.matrix_local's rotation identical to (mtr @ ROT_FIX)'s rotation,
-        # which is what import_animation.py expects.
-        eb.align_roll(mtr.to_3x3().col[2])
+        eb.align_roll(to_blender(mtr.to_3x3().col[1]))
 
     bpy.ops.object.mode_set(mode='OBJECT')
     armature.data.display_type = 'OCTAHEDRAL'

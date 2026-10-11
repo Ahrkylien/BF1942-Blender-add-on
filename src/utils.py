@@ -14,6 +14,7 @@ from .place_object import bf42_placeObject
 from .import_geometry import bf42_importGeometry
 from .import_skeleton import import_ske
 from .import_animation import parse_baf, apply_animation
+from .import_skin import parse_skn, apply_skin
 from .export_skeleton import export_ske
 from .export_animation import export_baf
 from .texture_conversion import *
@@ -672,6 +673,36 @@ class BF1942_ImportBAF(Operator):
         action_name = os.path.splitext(bpy.path.basename(self.filepath))[0]
         apply_animation(armature_obj, bones, action_name, settings.sceneScale)
         return {'FINISHED'}
+class BF1942_ImportSKN(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.importskn"
+    bl_label = "Import BF1942 Skin"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    filepath: StringProperty(subtype="FILE_PATH")
+    filter_glob: StringProperty(default="*.skn", options={'HIDDEN'})
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+
+    def execute(self, context):
+        settings = context.scene.BF1942Settings
+        armature_obj = settings.BAFImportArmature
+        mesh_obj = settings.SKNMesh
+        if armature_obj is None:
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+        if mesh_obj is None:
+            self.report({'ERROR'}, "No mesh selected")
+            return {'CANCELLED'}
+        vertex_positions, vertex_weights, bone_names = parse_skn(self.filepath)
+        matched, total = apply_skin(mesh_obj, armature_obj, vertex_positions, vertex_weights, bone_names, settings.sceneScale)
+        if matched == total:
+            self.report({'INFO'}, f"Skin: all {total} mesh vertices matched")
+        else:
+            self.report({'WARNING'}, f"Skin: {matched} of {total} mesh vertices matched")
+        return {'FINISHED'}
 class BF1942_ExportSKE(Operator):
     """An Operator for the BF1942 addon"""
     bl_idname = "bf1942.exportske"
@@ -1035,6 +1066,12 @@ class BF1942_PT_ImportAnimation(Panel):
         col = layout.column(align=True)
         col.prop(settings, 'BAFImportArmature', text='Armature')
         col.operator("bf1942.importbaf", text="Import animation (.baf)")
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(settings, 'SKNMesh', text='Mesh')
+        col.operator("bf1942.importskn", text="Import skin (.skn)")
 
 class BF1942_PT_ExportAnimation(Panel):
     bl_space_type = "VIEW_3D"
@@ -1415,6 +1452,7 @@ class BF1942Settings(PropertyGroup):
 
     SKEUseConnectBones : BoolProperty(name="Connect Bones", description="Connect bones whose head lies on the parent bone", default=False)
     BAFImportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
+    SKNMesh : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'MESH')
     BAFExportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
     SKEExportDir : StringProperty(name="SKEExportDir", default="", subtype="DIR_PATH")
     SKEExportName : StringProperty(name="SKEExportName", default="")
