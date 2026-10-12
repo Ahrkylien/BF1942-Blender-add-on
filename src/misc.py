@@ -1,7 +1,9 @@
 import bpy
 import os
+import struct
 from math import pi
 import pickle
+from mathutils import Matrix
 
 from .bf42_script import bf42_vec3, bf42_listAllGeometries
 
@@ -385,3 +387,46 @@ def bf42_getGeometryName(data, object_template_name, mesh_name=None):
         return
     
     return matching_geometries[0].name
+
+
+#Skeleton, animation and skin files:
+def read_float(f):
+    return struct.unpack('<f', f.read(4))[0]
+
+def read_int16(f):
+    return struct.unpack('<h', f.read(2))[0]
+
+def read_uint8(f):
+    return struct.unpack('<B', f.read(1))[0]
+
+def read_uint16(f):
+    return struct.unpack('<H', f.read(2))[0]
+
+def read_uint32(f):
+    return struct.unpack('<I', f.read(4))[0]
+
+def read_string(f, length):
+    return f.read(length).decode('utf-8')
+
+def tell_remaining_length(f):
+    current = f.tell()
+    f.seek(0, 2)
+    end = f.tell()
+    f.seek(current)
+    return end - current
+
+# Engine (Y-up) to Blender (Z-up) axes: Y and Z swap.
+ENGINE_TO_BLENDER = Matrix(((1, 0, 0), (0, 0, 1), (0, 1, 0)))
+
+# Engine bones point along X, Blender bones along Y. Rotating -90° about Z maps X onto Y.
+ROT_FIX = Matrix.Rotation(-pi / 2, 4, 'Z')
+
+# Engine bone-local coordinates to Blender bone-local coordinates.
+BONE_FRAME = ENGINE_TO_BLENDER.to_4x4() @ ROT_FIX
+BONE_FRAME_INV = BONE_FRAME.inverted()
+
+# A player skeleton's Bip01 root is turned -90° about X so the character stands upright.
+PLAYER_ROOT_TURN = Matrix.Rotation(-pi / 2, 3, 'X')
+
+def is_player_root(bone_name):
+    return bone_name.lower() == "bip01"

@@ -1,20 +1,8 @@
-import math
-import struct
-import bpy
-from mathutils import Matrix, Vector, kdtree
+from mathutils import Vector, kdtree
 
-BONE_FRAME = Matrix(((1, 0, 0), (0, 0, 1), (0, 1, 0))).to_4x4() @ Matrix.Rotation(-math.pi / 2, 4, 'Z')
-BONE_FRAME_INV = BONE_FRAME.inverted()
+from .misc import *
+
 REST_SHAPE = "BF1942 rest"
-
-
-def read_float(f):  return struct.unpack('<f', f.read(4))[0]
-def read_uint8(f):  return struct.unpack('<B', f.read(1))[0]
-def read_uint16(f): return struct.unpack('<H', f.read(2))[0]
-def read_uint32(f): return struct.unpack('<I', f.read(4))[0]
-
-def read_string(f, length):
-    return f.read(length).decode('utf-8')
 
 
 def parse_skn(filepath):
@@ -40,7 +28,7 @@ def parse_skn(filepath):
             vw = []
             for _ in range(num_w):
                 bone_idx = read_uint16(f)
-                w        = read_float(f)
+                w = read_float(f)
                 rx, ry, rz = read_float(f), read_float(f), read_float(f)
                 vw.append((bone_idx, w, rx, ry, rz))
             vertex_weights.append(vw)
@@ -80,8 +68,8 @@ def apply_skin(mesh_obj, armature_obj, vertex_positions, vertex_weights, bone_na
         mesh_obj.vertex_groups.new(name=name)
 
     tree = kdtree.KDTree(len(vertex_positions))
-    for i, (x, y, z) in enumerate(vertex_positions):
-        tree.insert(Vector((x, z, y)) * scene_scale, i)
+    for i, p in enumerate(vertex_positions):
+        tree.insert((ENGINE_TO_BLENDER @ Vector(p)) * scene_scale, i)
     tree.balance()
 
     rest_of_bone = {}
@@ -91,32 +79,31 @@ def apply_skin(mesh_obj, armature_obj, vertex_positions, vertex_weights, bone_na
             rest_of_bone[name] = armature_obj.matrix_world @ bone.matrix_local
 
     tolerance = 1e-3 * scene_scale
+    inverse_matrix = mesh_obj.matrix_world.inverted()
     rest_coords = []
     matched = 0
     for v in mesh.vertices:
+        rest_co = v.co.copy()
         _, skn_index, distance = tree.find(mesh_obj.matrix_world @ v.co)
-        if distance > tolerance:
-            rest_coords.append(v.co.copy())
-            continue
-        groups = {}
-        rest_sum = Vector((0.0, 0.0, 0.0))
-        weight_sum = 0.0
-        for bone_idx, w, rx, ry, rz in vertex_weights[skn_index]:
-            if bone_idx >= len(bone_names) or w <= 0.0:
-                continue
-            name = bone_names[bone_idx]
-            groups[name] = groups.get(name, 0.0) + w
-            if name in rest_of_bone:
-                rel = Vector((rx, ry, rz)) * scene_scale
-                rest_sum += (rest_of_bone[name] @ (BONE_FRAME_INV @ rel)) * w
-                weight_sum += w
-        for name, w in groups.items():
-            mesh_obj.vertex_groups[name].add([v.index], w, 'REPLACE')
-        if weight_sum > 0.0:
-            rest_coords.append(mesh_obj.matrix_world.inverted() @ (rest_sum / weight_sum))
-        else:
-            rest_coords.append(v.co.copy())
-        matched += 1
+        if distance <= tolerance:
+            matched += 1
+            groups = {}
+            rest_world = Vector((0.0, 0.0, 0.0))
+            weight_sum = 0.0
+            for bone_idx, w, rx, ry, rz in vertex_weights[skn_index]:
+                if bone_idx >= len(bone_names) or w <= 0.0:
+                    continue
+                name = bone_names[bone_idx]
+                groups[name] = groups.get(name, 0.0) + w
+                if name in rest_of_bone:
+                    rel = Vector((rx, ry, rz)) * scene_scale
+                    rest_world += (rest_of_bone[name] @ (BONE_FRAME_INV @ rel)) * w
+                    weight_sum += w
+            for name, w in groups.items():
+                mesh_obj.vertex_groups[name].add([v.index], w, 'REPLACE')
+            if weight_sum > 0.0:
+                rest_co = inverse_matrix @ (rest_world / weight_sum)
+        rest_coords.append(rest_co)
 
     rest = mesh_obj.shape_key_add(name=REST_SHAPE, from_mix=False)
     for vi, co in enumerate(rest_coords):

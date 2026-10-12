@@ -1,27 +1,9 @@
 import os
-import struct
+
 import bpy
-import math
 from mathutils import Matrix, Vector
 
-# BF1942 Biped uses X as the bone forward axis, but Blender bones point along Y.
-# Rotating -90° around Z maps local-X → local-Y, aligning the bone direction.
-# This constant is also used by import_animation.py — keep them in sync.
-ROT_FIX = Matrix.Rotation(-math.pi / 2, 4, 'Z')
-# A player skeleton's Bip01 root is turned -90° about X so the character stands upright.
-PLAYER_WORLD_FIX = Matrix.Rotation(-math.pi / 2, 3, 'X')
-
-def read_float(file):
-    return struct.unpack('<f', file.read(4))[0]
-
-def read_uint16(file):
-    return struct.unpack('<H', file.read(2))[0]
-
-def read_uint32(file):
-    return struct.unpack('<I', file.read(4))[0]
-
-def read_string(file, length):
-    return file.read(length).decode('utf-8')
+from .misc import *
 
 
 class Bf1942Bone:
@@ -46,21 +28,10 @@ class Bf1942Bone:
     def is_leaf_bone(self):
         return self.children == []
 
-    @property
-    def is_intermediate_bone(self):
-        return not self.is_root and not self.is_leaf_bone
-
-    @property
-    def absolute_position(self):
-        return Vector(self.get_absolute_matrix().col[3][:3])
-
     def get_absolute_matrix(self):
         if self.parent is None:
             return self.matrix
         return self.parent.get_absolute_matrix() @ self.matrix
-
-    def get_relative_position(self):
-        return Vector([self.matrix[0][3], self.matrix[1][3], self.matrix[2][3]])
 
     def __repr__(self):
         return f"Bf1942Bone(name={self.name}, parent_index={self.parent_index})"
@@ -75,7 +46,7 @@ def read_bones_from_ske(filepath):
 
         num_bones = read_uint32(file)
 
-        for i in range(num_bones):
+        for _ in range(num_bones):
             name_length = read_uint16(file)
             bone_name = read_string(file, name_length)[:-1]  # zero terminated
 
@@ -140,22 +111,18 @@ def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
 
     bones = read_bones_from_ske(filepath)
     for bone in bones:
-        bone.matrix[0][3] *= scene_scale
-        bone.matrix[1][3] *= scene_scale
-        bone.matrix[2][3] *= scene_scale
+        for row in range(3):
+            bone.matrix[row][3] *= scene_scale
 
-    is_player = any(bone.is_root and bone.name.lower() == "bip01" for bone in bones)
-    world = PLAYER_WORLD_FIX if is_player else Matrix.Identity(3)
-
-    def to_blender(v):
-        return world @ Vector((v.x, v.z, v.y))
+    is_player = any(bone.is_root and is_player_root(bone.name) for bone in bones)
+    to_blender = (PLAYER_ROOT_TURN if is_player else Matrix.Identity(3)) @ ENGINE_TO_BLENDER
 
     object_name = os.path.splitext(bpy.path.basename(filepath))[0]
 
     if bpy.context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
 
-    bpy.ops.object.armature_add()
+    bpy.ops.object.armature_add(location=(0.0, 0.0, 0.0))
     armature = bpy.context.object
     armature.name = object_name
     bpy.context.view_layer.objects.active = armature
@@ -173,23 +140,21 @@ def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
         if bone.parent is not None:
             eb.parent = bone.parent.blender_bone
 
-        eb.head = to_blender(mtr.translation)
-        eb.tail = to_blender(mtr @ Vector((0.03 * scene_scale, 0, 0)))
+        eb.head = to_blender @ mtr.translation
+        eb.tail = to_blender @ (mtr @ Vector((0.03 * scene_scale, 0, 0)))
 
         if use_connect_bones and not bone.is_root:
             parent_eb = bone.parent.blender_bone
-            if is_point_on_segment(to_blender(mtr.translation), parent_eb.head, parent_eb.tail, distance_threshold):
+            if is_point_on_segment(to_blender @ mtr.translation, parent_eb.head, parent_eb.tail, distance_threshold):
                 eb.use_connect = True
 
         if not bone.is_leaf_bone:
             minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.children[0].get_absolute_matrix(), mtr)
             if minimum_distance is not None and minimum_distance < distance_threshold:
-                eb.tail = to_blender(pos1)
+                eb.tail = to_blender @ pos1
 
-        eb.align_roll(to_blender(mtr.to_3x3().col[1]))
+        eb.align_roll(to_blender @ mtr.to_3x3().col[1])
 
     bpy.ops.object.mode_set(mode='OBJECT')
     armature.data.display_type = 'OCTAHEDRAL'
     return armature
-
-

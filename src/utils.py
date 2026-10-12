@@ -671,7 +671,9 @@ class BF1942_ImportBAF(Operator):
             return {'CANCELLED'}
         bones = parse_baf(self.filepath)
         action_name = os.path.splitext(bpy.path.basename(self.filepath))[0]
-        apply_animation(armature_obj, bones, action_name, settings.sceneScale)
+        skipped = apply_animation(armature_obj, bones, action_name, settings.sceneScale)
+        if skipped:
+            self.report({'WARNING'}, f"Skipped BAF bones missing from the armature: {', '.join(skipped)}")
         return {'FINISHED'}
 class BF1942_ImportSKN(Operator):
     """An Operator for the BF1942 addon"""
