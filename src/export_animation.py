@@ -1,20 +1,7 @@
 import bpy
 import struct
-import math
-from mathutils import Matrix
 
-ROT_FIX = Matrix.Rotation(-math.pi / 2, 4, 'Z')
-ROT_FIX_INV = ROT_FIX.inverted()
-
-
-def _write_uint8(file, v):  file.write(struct.pack('<B', v))
-def _write_uint16(file, v): file.write(struct.pack('<H', v))
-def _write_uint32(file, v): file.write(struct.pack('<I', v))
-
-def _write_string(file, s):
-    encoded = s.encode('ascii') + b'\x00'
-    _write_uint16(file, len(encoded))
-    file.write(encoded)
+from .misc import *
 
 
 def _choose_precision(values):
@@ -71,10 +58,9 @@ def export_baf(filepath, armature_obj, action=None, scene_scale=1.0):
         action = armature_obj.animation_data.action
 
     frame_start = int(action.frame_range[0])
-    frame_end   = int(action.frame_range[1])
-    num_frames  = frame_end - frame_start + 1
+    frame_end = int(action.frame_range[1])
+    num_frames = frame_end - frame_start + 1
 
-    # Collect animated bone names from action fcurves
     animated_names = set()
     for fc in action.fcurves:
         if fc.data_path.startswith('pose.bones["'):
@@ -84,52 +70,49 @@ def export_baf(filepath, armature_obj, action=None, scene_scale=1.0):
     if not animated_bones:
         raise Exception("No animated bones found in action")
 
-    # Sample pose at every frame
+    root_frame = root_turn(b.name for b in armature.bones if b.parent is None).to_4x4() @ ROT_FIX
+    pose_bones = armature_obj.pose.bones
+
     scene = bpy.context.scene
-    prev_frame  = scene.frame_current
+    prev_frame = scene.frame_current
     prev_action = armature_obj.animation_data.action if armature_obj.animation_data else None
     armature_obj.animation_data.action = action
 
     # 7 channels per bone: qx qy qz qw tx ty tz
     channels = {b.name: [[] for _ in range(7)] for b in animated_bones}
+    last_rot = {}
 
     for frame in range(frame_start, frame_end + 1):
         scene.frame_set(frame)
         bpy.context.view_layer.update()
 
         for bone in animated_bones:
-            pb = armature_obj.pose.bones[bone.name]
-
-            # Armature-space engine matrix for this bone (and its parent if any)
-            eng_abs = pb.matrix @ ROT_FIX_INV
+            pose = pose_bones[bone.name].matrix
             if bone.parent:
-                parent_pb = armature_obj.pose.bones.get(bone.parent.name)
-                if parent_pb:
-                    parent_eng_abs = parent_pb.matrix @ ROT_FIX_INV
-                    anim_local = parent_eng_abs.inverted() @ eng_abs
-                else:
-                    anim_local = eng_abs
+                frame_local = pose_bones[bone.parent.name].matrix.inverted() @ pose
             else:
-                anim_local = eng_abs
+                frame_local = root_frame.inverted() @ pose
+            engine_local = BONE_FRAME @ frame_local @ BONE_FRAME_INV
 
-            blender_q = anim_local.to_3x3().to_quaternion()
-            # Conjugate: engine uses row-vector convention
+            rot = engine_local.to_3x3().to_quaternion()
+            if bone.name in last_rot and rot.dot(last_rot[bone.name]) < 0:
+                rot.negate()
+            last_rot[bone.name] = rot.copy()
+
             ch = channels[bone.name]
-            ch[0].append(-blender_q.x)
-            ch[1].append(-blender_q.y)
-            ch[2].append(-blender_q.z)
-            ch[3].append( blender_q.w)
-            tx, ty, tz = anim_local.translation / scene_scale
+            ch[0].append(-rot.x)
+            ch[1].append(-rot.y)
+            ch[2].append(-rot.z)
+            ch[3].append(rot.w)
+            tx, ty, tz = engine_local.translation / scene_scale
             ch[4].append(tx)
             ch[5].append(ty)
             ch[6].append(tz)
 
-    # Restore state
     scene.frame_set(prev_frame)
-    if armature_obj.animation_data and prev_action:
+    if armature_obj.animation_data:
         armature_obj.animation_data.action = prev_action
 
-    # Choose translation precision from data range
     all_trans = []
     for bone in animated_bones:
         for i in range(4, 7):
@@ -137,24 +120,18 @@ def export_baf(filepath, armature_obj, action=None, scene_scale=1.0):
     precision = _choose_precision(all_trans)
 
     with open(filepath, 'wb') as f:
-        _write_uint32(f, 3)  # version
-        _write_uint16(f, len(animated_bones))
+        write_uint32(f, 3)  # version
+        write_uint16(f, len(animated_bones))
         for bone in animated_bones:
-            _write_string(f, bone.name)
-        _write_uint32(f, num_frames)
-        _write_uint8(f, precision)
+            write_string(f, bone.name)
+        write_uint32(f, num_frames)
+        write_uint8(f, precision)
 
         for bone in animated_bones:
             ch = channels[bone.name]
-            streams = []
-            for i in range(4):  # rotation channels: precision 15
-                streams.append(_encode_channel(ch[i], 15))
-            for i in range(4, 7):  # translation channels: auto precision
-                streams.append(_encode_channel(ch[i], precision))
-
-            total_int16 = sum(len(s) // 2 for s in streams)
-            _write_uint16(f, total_int16)  # streamCount
-
+            streams = [_encode_channel(ch[i], 15) for i in range(4)]
+            streams += [_encode_channel(ch[i], precision) for i in range(4, 7)]
+            write_uint16(f, sum(len(s) // 2 for s in streams))  # streamCount
             for stream in streams:
-                _write_uint16(f, len(stream) // 2)  # channel int16 count
+                write_uint16(f, len(stream) // 2)  # channel int16 count
                 f.write(stream)

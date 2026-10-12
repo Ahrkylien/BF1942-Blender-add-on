@@ -2,8 +2,6 @@ from mathutils import Vector, kdtree
 
 from .misc import *
 
-REST_SHAPE = "BF1942 rest"
-
 
 def parse_skn(filepath):
     """

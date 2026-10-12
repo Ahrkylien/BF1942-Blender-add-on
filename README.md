@@ -19,6 +19,33 @@ The add-on is still in a very early stage.
 - now the Add-on is added. You only need to enable it by clicking the checkbox
 - in Object-Mode on the right panel (press 'n') you will find the BF1942 menu
 - for further usage read: https://github.com/Ahrkylien/BF1942-Blender-add-on/wiki/Usage
+## Skeleton, animation and skin (.ske, .baf, .skn)
+
+Set **Scene Scale** (default 0.1) before importing or exporting. It applies to all three formats.
+
+### Skeleton (.ske)
+- **Import:** creates an armature named after the file. A `Bip01` root (player skeleton) is turned -90° about X so the character stands upright.
+- **Export:** writes the armature's bones from their rest pose.
+- **Bones** (import option):
+  - **Extrapolate bones** (default): when a bone's axis nearly meets its child's axis, the tail moves onto that axis.
+  - **Extrapolate and Connect bones**: as above, and a child whose head lies on its parent bone is connected to it.
+  - **Pure**: bones use the exact axes from the file. No tail moves and no connections, so bones may not touch their children.
+
+### Animation (.baf)
+- **Import:** applies the animation to the **Armature** field, which the skeleton import fills in. Creates an action named after the file and makes it the armature's active action. Bones the armature doesn't have are skipped and listed in a warning. If needed, the scene's start frame is lowered to 0 and its end frame is raised to the last animation frame.
+- **Existing animation:** nothing is overwritten. Importing again creates a new action. The previous action stays in the file but is no longer active. Without a **Fake User** (shield icon in the Action Editor) it is dropped on a later save. Turn on Fake User before importing to keep it.
+- **Finding an action:** in the **Action Editor** (Dope Sheet mode), the action dropdown lists the actions in the file. The Outliner's **Blender File** view lists them too. With **Export all actions** on, the Animation export panel lists the actions that animate the armature.
+- **Export:** select the **Armature**. With **Export all actions**, each action is written to its own file. Otherwise the action chosen in **Action** is written.
+
+### Skin (.skn)
+- **Import:** select the **Mesh** and the **Armature**. Import the matching .sm first, because vertices are matched by position. The mesh keeps its .sm geometry as the basis and is folded onto the rest pose in the shape key **BF1942 rest** (value 1.0).
+- **Export:** select the **Armature** and the **Mesh**. Writes vertex positions and weights. Per-bone values come from the **BF1942 rest** shape key if present, otherwise from the basis.
+
+### Limitations
+- **.ske:** the Extrapolate options (used during import) change bone directions by up to about 0.1°. Use **Pure** for an exact round trip.
+- **.skn:** for vertices weighted to more than one bone, the per-bone values are recalculated on export, so they can differ slightly from the source file. The rest pose is unchanged.
+- **.baf:** bones missing from the armature are not exported.
+
 ## ToDo:
 - all imports:
 	check if collection (where the new object is placed) is visable

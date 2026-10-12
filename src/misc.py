@@ -430,3 +430,28 @@ PLAYER_ROOT_TURN = Matrix.Rotation(-pi / 2, 3, 'X')
 
 def is_player_root(bone_name):
     return bone_name.lower() == "bip01"
+
+def root_turn(root_bone_names):
+    if any(is_player_root(name) for name in root_bone_names):
+        return PLAYER_ROOT_TURN
+    return Matrix.Identity(3)
+
+# Shape key holding the skin's folded rest pose.
+REST_SHAPE = "BF1942 rest"
+
+def write_float(f, v):
+    f.write(struct.pack('<f', v))
+
+def write_uint8(f, v):
+    f.write(struct.pack('<B', v))
+
+def write_uint16(f, v):
+    f.write(struct.pack('<H', v))
+
+def write_uint32(f, v):
+    f.write(struct.pack('<I', v))
+
+def write_string(f, s):
+    encoded = s.encode('ascii') + b'\x00'
+    write_uint16(f, len(encoded))
+    f.write(encoded)

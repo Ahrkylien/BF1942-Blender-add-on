@@ -106,16 +106,17 @@ def get_minimum_distance_between_lines(matrix1, matrix2):
     return None, None, None
 
 
-def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
+def import_ske(filepath, bone_mode='EXTRAPOLATE', scene_scale=1.0):
     distance_threshold = 0.001 * scene_scale
+    extrapolate = bone_mode != 'PURE'
+    connect = bone_mode == 'EXTRAPOLATE_CONNECT'
 
     bones = read_bones_from_ske(filepath)
     for bone in bones:
         for row in range(3):
             bone.matrix[row][3] *= scene_scale
 
-    is_player = any(bone.is_root and is_player_root(bone.name) for bone in bones)
-    to_blender = (PLAYER_ROOT_TURN if is_player else Matrix.Identity(3)) @ ENGINE_TO_BLENDER
+    to_blender = root_turn(bone.name for bone in bones if bone.is_root) @ ENGINE_TO_BLENDER
 
     object_name = os.path.splitext(bpy.path.basename(filepath))[0]
 
@@ -143,12 +144,12 @@ def import_ske(filepath, use_connect_bones=False, scene_scale=1.0):
         eb.head = to_blender @ mtr.translation
         eb.tail = to_blender @ (mtr @ Vector((0.03 * scene_scale, 0, 0)))
 
-        if use_connect_bones and not bone.is_root:
+        if connect and not bone.is_root:
             parent_eb = bone.parent.blender_bone
             if is_point_on_segment(to_blender @ mtr.translation, parent_eb.head, parent_eb.tail, distance_threshold):
                 eb.use_connect = True
 
-        if not bone.is_leaf_bone:
+        if extrapolate and not bone.is_leaf_bone:
             minimum_distance, pos1, pos2 = get_minimum_distance_between_lines(bone.children[0].get_absolute_matrix(), mtr)
             if minimum_distance is not None and minimum_distance < distance_threshold:
                 eb.tail = to_blender @ pos1

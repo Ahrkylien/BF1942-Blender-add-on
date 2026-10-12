@@ -17,6 +17,7 @@ from .import_animation import parse_baf, apply_animation
 from .import_skin import parse_skn, apply_skin
 from .export_skeleton import export_ske
 from .export_animation import export_baf
+from .export_skin import export_skn
 from .texture_conversion import *
 from .misc import *
 
@@ -647,7 +648,7 @@ class BF1942_ImportSKE(Operator):
 
     def execute(self, context):
         settings = context.scene.BF1942Settings
-        armature = import_ske(self.filepath, settings.SKEUseConnectBones, settings.sceneScale)
+        armature = import_ske(self.filepath, settings.SKEBoneMode, settings.sceneScale)
         settings.BAFImportArmature = armature
         return {'FINISHED'}
 class BF1942_ImportBAF(Operator):
@@ -720,6 +721,26 @@ class BF1942_ExportSKE(Operator):
         folder = bpy.path.abspath(settings.SKEExportDir)
         name = settings.SKEExportName or revomeBlenderSuffix(armature_obj.name)
         export_ske(os.path.join(folder, name + ".ske"), armature_obj, settings.sceneScale)
+        return {'FINISHED'}
+class BF1942_ExportSKN(Operator):
+    """An Operator for the BF1942 addon"""
+    bl_idname = "bf1942.exportskn"
+    bl_label = "Export BF1942 Skin"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        settings = context.scene.BF1942Settings
+        armature_obj = settings.BAFExportArmature
+        mesh_obj = settings.SKNMesh
+        if armature_obj is None:
+            self.report({'ERROR'}, "No armature selected")
+            return {'CANCELLED'}
+        if mesh_obj is None:
+            self.report({'ERROR'}, "No mesh selected")
+            return {'CANCELLED'}
+        folder = bpy.path.abspath(settings.SKNExportDir)
+        name = settings.SKNExportName or revomeBlenderSuffix(mesh_obj.name)
+        export_skn(os.path.join(folder, name + ".skn"), mesh_obj, armature_obj, settings.sceneScale)
         return {'FINISHED'}
 class BF1942_ExportBAF(Operator):
     """An Operator for the BF1942 addon"""
@@ -1060,7 +1081,7 @@ class BF1942_PT_ImportAnimation(Panel):
         layout = self.layout
 
         col = layout.column(align=True)
-        col.prop(settings, 'SKEUseConnectBones', text='Connect Bones')
+        col.prop(settings, 'SKEBoneMode', text='Bones')
         col.operator("bf1942.importske", text="Import skeleton (.ske)")
 
         layout.separator()
@@ -1118,6 +1139,14 @@ class BF1942_PT_ExportAnimation(Panel):
             col.prop(settings, 'BAFExportAction', text='Action')
 
         col.operator("bf1942.exportbaf", text="Export animation (.baf)")
+
+        layout.separator()
+
+        col = layout.column(align=True)
+        col.prop(settings, 'SKNMesh', text='Mesh')
+        col.prop(settings, 'SKNExportDir', text='Folder')
+        col.prop(settings, 'SKNExportName', text='Name')
+        col.operator("bf1942.exportskn", text="Export skin (.skn)")
 
 class BF1942_PT_material(Panel):
     bl_idname = "MATERIAL_PT_BF1942"
@@ -1452,12 +1481,19 @@ class BF1942Settings(PropertyGroup):
     
     ################# .ske / .baf import settings ###################
 
-    SKEUseConnectBones : BoolProperty(name="Connect Bones", description="Connect bones whose head lies on the parent bone", default=False)
+    ske_bone_modes = [
+        ("EXTRAPOLATE_CONNECT", "Extrapolate and Connect bones", "Extend bone tails onto the child bone and connect bones whose head lies on the parent bone"),
+        ("EXTRAPOLATE", "Extrapolate bones", "Extend bone tails onto the child bone"),
+        ("PURE", "Pure", "Keep bone axes exactly as stored in the .ske file")
+    ]
+    SKEBoneMode : EnumProperty(items = ske_bone_modes, name="Bones", description="How bones are placed on import", default="EXTRAPOLATE")
     BAFImportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
     SKNMesh : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'MESH')
     BAFExportArmature : PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == 'ARMATURE')
     SKEExportDir : StringProperty(name="SKEExportDir", default="", subtype="DIR_PATH")
     SKEExportName : StringProperty(name="SKEExportName", default="")
+    SKNExportDir : StringProperty(name="SKNExportDir", default="", subtype="DIR_PATH")
+    SKNExportName : StringProperty(name="SKNExportName", default="")
     BAFExportAllActions : BoolProperty(name="Export all actions", default=True)
     BAFExportAction : EnumProperty(items=BAFActionsCallback, name="Action")
     BAFExportDir : StringProperty(name="BAFExportDir", default="", subtype="DIR_PATH")

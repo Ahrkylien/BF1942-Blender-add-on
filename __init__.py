@@ -41,6 +41,7 @@ classes = (
     BF1942_ImportBAF,
     BF1942_ImportSKN,
     BF1942_ExportSKE,
+    BF1942_ExportSKN,
     BF1942_ExportBAF,
     BF1942_PT_ImportAnimation,
     BF1942_PT_ExportAnimation,

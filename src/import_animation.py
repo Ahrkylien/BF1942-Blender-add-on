@@ -100,8 +100,7 @@ def apply_animation(armature_obj, bones, action_name="BF1942Anim", scene_scale=1
     num_frames = len(bones[0].frames)
     skipped = [bone.name for bone in bones if bone.name not in pose_bones]
     tracked = [bone for bone in bones if bone.name in pose_bones]
-    is_player = any(b.parent is None and is_player_root(b.name) for b in armature.bones)
-    root_frame = PLAYER_ROOT_TURN.to_4x4() @ ROT_FIX if is_player else ROT_FIX
+    root_frame = root_turn(b.name for b in armature.bones if b.parent is None).to_4x4() @ ROT_FIX
 
     for frame_idx in range(num_frames):
         for bone_data in tracked:
